@@ -127,7 +127,63 @@ This document records what was done in each phase, **main problems encountered**
 | Critic          | ✅     | `evaluate_finding`; uses clause + graph context to output justified/reason |
 | Evaluator       | ✅     | `evaluate_escalation`; outputs escalation, fallback_language, reason |
 | LangGraph       | ✅     | build_review_graph + run_review; outputs StructuredRiskMemo |
-| API / Frontend  | ⏳     | Stub only; review flow not wired |
+| API             | ✅     | Health, contracts (upload/demo), review; CORS + exception handling |
+| Frontend        | ✅     | Next.js layout, RiskCard + EvidenceChain, i18n, full upload→review flow |
+| Phase 6 (Evaluation) | ⏸️  | Skipped for now (benchmark / metrics / baselines not required for MVP) |
+
+---
+
+## Phase 4: Interface layer — API
+
+### Task 13: API dependencies and health check
+
+- **Done**: `app/api/deps.py` (`check_neo4j()`, `check_llm()`); `app/api/routes/health.py` — `GET /health` returns `{ status, neo4j, llm, ... }`, 503 when degraded.
+- **Result**: One endpoint to verify Neo4j and LLM availability before running pipelines.
+
+### Task 14: Contract upload and parse API
+
+- **Done**: `app/pipeline/run_structural.py` (shared `run_structural_pipeline(path_or_bytes, contract_id)` used by script and API); `app/api/routes/contracts.py` — `POST /contracts/upload` (multipart PDF → pipeline → contract_id, status), `POST /contracts/demo` (same pipeline on built-in sample `EX-10.4(a).pdf`). Sample-based flow kept for MVP demo.
+- **Note**: Rule-based segmenter is tuned for “Section X.Y” numbering; other PDFs still run but may get fewer rule-based clauses (LLM-only fallback). Documented in `docs/architecture.md` (Extraction pipeline scope).
+- **Result**: Upload or demo returns `contract_id`; pipeline runs in thread pool to avoid blocking.
+
+### Task 15: Review trigger and risk memo API
+
+- **Done**: `app/api/routes/review.py` — `POST /review` (body: contract_id, optional playbook_id), `GET /review?contract_id=...&playbook_id=...`; both call `run_review(contract_id, playbook_path)` and return `StructuredRiskMemo`.
+- **Result**: Frontend can trigger review and get risk items (clause, risk_level, rule_triggered, reason, escalation, citation, evidence_summary, etc.).
+
+### Task 16: FastAPI app mount and startup
+
+- **Done**: `app/main.py` — CORS middleware (`allow_origins=["*"]`), global exception handler (500 with JSON; `HTTPException` re-raised), routers for health, contracts, review. `uvicorn app.main:app --reload` runs the API.
+- **Result**: Single entry point; `/health`, `/contracts/upload`, `/contracts/demo`, `/review` (GET/POST) available.
+
+---
+
+## Phase 5: Interface layer — Frontend
+
+### Task 17: Frontend init and layout
+
+- **Done**: Next.js 14 (App Router) under `frontend/` — package.json, tsconfig, next.config, Tailwind, PostCSS; `app/layout.tsx`, `app/page.tsx`. Two-column layout: left = contract/clause area, right = risk cards. Bilingual (zh/en) via `LocaleContext` + `LanguageSwitcher`; locale stored in localStorage.
+- **Result**: `cd frontend && npm install && npm run dev` → http://localhost:3000 with left/right panels and language toggle.
+
+### Task 18: Risk card and evidence chain components
+
+- **Done**: `frontend/app/types/risk.ts` (RiskMemoItem, StructuredRiskMemo, Citation); `frontend/app/components/RiskCard.tsx` (displays clause, rule_triggered, risk_level, reason, fallback_language, escalation, citation, evidence_summary, justified, confidence; level styling; expandable evidence); `frontend/app/components/EvidenceChain.tsx` (shows citation + evidence_summary from API; no separate “referenced clauses/definitions” API yet). All labels wired to i18n.
+- **Result**: Risk cards and evidence block render from `StructuredRiskMemo`; evidence uses existing API fields only.
+
+### Task 19: Frontend–backend integration and review flow
+
+- **Done**: `frontend/lib/api.ts` (uploadContract, demoContract, runReview; base URL from `NEXT_PUBLIC_API_URL`); page state (contractId, memo, uploading, reviewing, error, selectedClauseRef). Flow: upload PDF or “Use sample” → get contract_id → “Start review” → GET /review → render memo.items as RiskCards. Left panel: before contract = upload/demo UI; after contract = “Start review” button; after review = list of clause blocks (from memo, deduped by clause_ref). Clicking a risk card scrolls to and highlights the corresponding clause block on the left (smooth scroll + highlight).
+- **Result**: Full flow works: upload or demo → parse (wait) → start review → review (wait) → left shows clauses, right shows risk cards; click card → left scrolls to and highlights that clause.
+
+---
+
+## Concrete process (current MVP flow)
+
+1. **Backend**: `uvicorn app.main:app --reload` (default http://127.0.0.1:8000). Optional: set NEO4J_*, OPENAI_API_KEY in `.env`.
+2. **Frontend**: `cd frontend && npm run dev` (default http://localhost:3000). Optional: `NEXT_PUBLIC_API_URL=http://localhost:8000`.
+3. **User**: Open frontend → “Upload PDF” or “Use sample contract” → wait for parsing → “Start review” → wait for review → left panel shows clauses (from memo), right panel shows risk cards.
+4. **User**: Click a risk card → left panel scrolls to and highlights the clause for that finding (by clause_ref / citation).
+5. **API sequence**: POST /contracts/demo (or /contracts/upload) → GET /review?contract_id=EX-10.4(a) (or POST /review with body). Health: GET /health.
 
 ---
 
@@ -141,5 +197,7 @@ This document records what was done in each phase, **main problems encountered**
 - **Critic (Task 10)**: `python scripts/run_critic_demo.py "EX-10.4(a)" section_5_1`
 - **Evaluator (Task 11)**: `python scripts/run_evaluator_demo.py "EX-10.4(a)" section_7_2` (Scanner → Critic → Evaluator)
 - **LangGraph (Task 12)**: `python scripts/run_review_graph_demo.py "EX-10.4(a)"` or `--clauses section_5_1 section_7_2`
+- **API**: `uvicorn app.main:app --reload` → http://127.0.0.1:8000; `GET /health`, `POST /contracts/demo`, `GET /review?contract_id=EX-10.4(a)`
+- **Frontend**: `cd frontend && npm run dev` → http://localhost:3000
 
 More commands: [commands.md](commands.md).

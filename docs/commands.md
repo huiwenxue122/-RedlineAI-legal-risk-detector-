@@ -288,5 +288,6 @@ npm run dev
 | 任务 12 LangGraph 全合同/指定条款审查 | `python scripts/run_review_graph_demo.py "EX-10.4(a)"` 或 `--clauses section_5_1 section_7_2` |
 | 启动后端 API     | `uvicorn app.main:app --reload`        |
 | 启动前端         | `cd frontend && npm run dev`          |
+| 单元测试（任务 23） | `python -m pytest tests/unit -v`（需在已安装依赖的 venv 中运行） |
 
 有新任务或新脚本时，把对应命令补进本文档即可。

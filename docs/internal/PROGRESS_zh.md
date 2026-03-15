@@ -75,14 +75,72 @@
 
 ---
 
+## Phase 4：接口层 — API
+
+### 任务 13：API 依赖与健康检查
+
+- **完成**：`app/api/deps.py`（`check_neo4j()`、`check_llm()`）；`app/api/routes/health.py` — `GET /health` 返回 `{ status, neo4j, llm, ... }`，degraded 时返回 503。
+- **结果**：一个端点即可检查 Neo4j 与 LLM 是否可用。
+
+### 任务 14：合同上传与解析 API
+
+- **完成**：`app/pipeline/run_structural.py`（共享的 `run_structural_pipeline(path_or_bytes, contract_id)`，供脚本与 API 使用）；`app/api/routes/contracts.py` — `POST /contracts/upload`（multipart PDF → pipeline → contract_id、status），`POST /contracts/demo`（对内置样本 EX-10.4(a).pdf 跑同一 pipeline）。样本数据流保留，供 MVP 演示。
+- **说明**：规则分段器针对「Section X.Y」编号优化；其他 PDF 仍可跑，但可能得到较少规则分段条款（退化为仅 LLM）。已在 `docs/architecture.md` 中记录（Extraction pipeline scope）。
+- **结果**：上传或 demo 返回 contract_id；pipeline 在线程池中执行，避免阻塞。
+
+### 任务 15：审查触发与风险备忘录 API
+
+- **完成**：`app/api/routes/review.py` — `POST /review`（body：contract_id，可选 playbook_id），`GET /review?contract_id=...&playbook_id=...`；均调用 `run_review(contract_id, playbook_path)` 并返回 `StructuredRiskMemo`。
+- **结果**：前端可触发审查并拿到风险项（clause、risk_level、rule_triggered、reason、escalation、citation、evidence_summary 等）。
+
+### 任务 16：FastAPI 应用挂载与启动
+
+- **完成**：`app/main.py` — CORS 中间件、全局异常处理（500 返回 JSON；HTTPException 原样抛出），挂载 health、contracts、review 路由。`uvicorn app.main:app --reload` 启动 API。
+- **结果**：单一入口；`/health`、`/contracts/upload`、`/contracts/demo`、`/review`（GET/POST）可用。
+
+---
+
+## Phase 5：接口层 — 前端
+
+### 任务 17：前端项目初始化与布局
+
+- **完成**：在 `frontend/` 下搭建 Next.js 14（App Router）— package.json、tsconfig、next.config、Tailwind、PostCSS；`app/layout.tsx`、`app/page.tsx`。左右分栏：左侧合同/条款区，右侧风险卡片区。中英文双语：LocaleContext + LanguageSwitcher，语言选择存 localStorage。
+- **结果**：`cd frontend && npm install && npm run dev` → http://localhost:3000，左右分栏 + 语言切换。
+
+### 任务 18：风险卡片与证据链组件
+
+- **完成**：`frontend/app/types/risk.ts`（RiskMemoItem、StructuredRiskMemo、Citation）；`frontend/app/components/RiskCard.tsx`（展示 clause、rule_triggered、risk_level、reason、fallback_language、escalation、citation、evidence_summary、justified、confidence；等级样式；可展开证据）；`frontend/app/components/EvidenceChain.tsx`（展示 API 的 citation + evidence_summary；暂无单独「引用条款/定义」接口）。文案接 i18n。
+- **结果**：风险卡片与证据块由 `StructuredRiskMemo` 渲染；证据仅用现有 API 字段。
+
+### 任务 19：前后端对接与审查流程
+
+- **完成**：`frontend/lib/api.ts`（uploadContract、demoContract、runReview；base URL 用 `NEXT_PUBLIC_API_URL`）；页面状态（contractId、memo、uploading、reviewing、error、selectedClauseRef）。流程：上传 PDF 或「使用样本合同」→ 获得 contract_id →「开始审查」→ GET /review → 将 memo.items 渲染为 RiskCard。左侧：无合同时为上传/demo 区；有合同未审查时为「开始审查」按钮；审查后为条款列表（由 memo 按 clause_ref 去重）。点击风险卡片 → 左侧滚动并高亮对应条款块。
+- **结果**：完整流程可用：上传或 demo → 解析（等待）→ 开始审查 → 审查（等待）→ 左侧显示条款、右侧显示风险卡片；点击卡片 → 左侧滚动并高亮该条款。
+
+---
+
+## 具体过程（当前 MVP 流程）
+
+1. **后端**：`uvicorn app.main:app --reload`（默认 http://127.0.0.1:8000）。可选：在 `.env` 中配置 NEO4J_*、OPENAI_API_KEY。
+2. **前端**：`cd frontend && npm run dev`（默认 http://localhost:3000）。可选：`NEXT_PUBLIC_API_URL=http://localhost:8000`。
+3. **用户**：打开前端 →「上传 PDF」或「使用样本合同」→ 等待解析完成 →「开始审查」→ 等待审查完成 → 左侧显示条款（来自 memo），右侧显示风险卡片。
+4. **用户**：点击某张风险卡片 → 左侧滚动并高亮该条对应的条款（按 clause_ref / citation）。
+5. **API 顺序**：POST /contracts/demo（或 /contracts/upload）→ GET /review?contract_id=EX-10.4(a)（或 POST /review 带 body）。健康检查：GET /health。
+
+---
+
 ## 当前状态小结
 
-| 层级       | 状态 | 说明 |
-|------------|------|------|
-| 结构层     | ✅   | PDF → 解析 → 规则分段 + LLM 抽取 → 交叉引用 → Neo4j 入库，端到端跑通 |
-| 检索层     | ✅   | 按 clause 取 clause_text + graph_context |
-| Playbook   | ✅   | 多规则 YAML 加载 |
-| Scanner    | ✅   | 单条款/全合同扫描；TRIGGERS 写回 Neo4j |
-| Critic/Evaluator/LangGraph/API | ⏳   | 未实现 |
+| 层级           | 状态 | 说明 |
+|----------------|------|------|
+| 结构层         | ✅   | PDF → 解析 → 规则分段 + LLM 抽取 → 交叉引用 → Neo4j 入库，端到端跑通 |
+| 检索层         | ✅   | 按 clause 取 clause_text + graph_context |
+| Playbook       | ✅   | 多规则 YAML 加载 |
+| Scanner        | ✅   | 单条款/全合同扫描；TRIGGERS 写回 Neo4j |
+| Critic/Evaluator | ✅  | evaluate_finding / evaluate_escalation |
+| LangGraph      | ✅   | build_review_graph + run_review → StructuredRiskMemo |
+| API            | ✅   | health、contracts（upload/demo）、review；CORS + 异常处理 |
+| 前端           | ✅   | Next.js 布局、RiskCard + EvidenceChain、中英双语、上传→审查全流程 |
+| Phase 6 评估与基线 | ⏸️  | 暂不实施（MVP 不需要 benchmark / 指标 / 基线对比）|
 
 更多命令见 `docs/commands.md`。
