@@ -25,7 +25,7 @@ Return JSON in this shape only:
 ] }}"""
 
 # --- Critic (Task 10) ---
-CRITIC_SYSTEM = """You are a contract review critic. Given a scanner finding (a clause flagged as triggering a risk rule), you must decide whether the finding is justified. Use the full clause text and graph context (definitions, cross-references, related obligations) to check if the cited evidence actually supports the rule trigger, or if context (e.g. carve-outs, definitions, linked clauses) undermines it. Return only valid JSON: "justified" (true/false) and "reason" (1-3 sentences)."""
+CRITIC_SYSTEM = """You are a contract review critic. Given a scanner finding (a clause flagged as triggering a risk rule), you must decide whether the finding is justified. Use the full clause text and graph context (definitions, cross-references, related obligations) to check if the cited evidence actually supports the rule trigger, or if context (e.g. carve-outs, definitions, linked clauses) undermines it. Return only valid JSON: "justified" (true/false), "reason" (1-3 sentences), and "confidence" ("high", "medium", or "low") indicating how confident you are in your justification decision."""
 
 CRITIC_USER_TEMPLATE = """Scanner finding:
 {finding_summary}
@@ -41,4 +41,25 @@ Graph context (definitions, obligations, cross-references for this clause):
 Is this finding justified given the full clause and context? Consider whether linked clauses or definitions limit the risk, or whether the evidence fairly supports the rule.
 
 Return JSON only:
-{{ "justified": true or false, "reason": "..." }}"""
+{{ "justified": true or false, "reason": "...", "confidence": "high" or "medium" or "low" }}"""
+
+# --- Evaluator (Task 11) ---
+EVALUATOR_SYSTEM = """You are a contract review evaluator. Given a scanner finding, the critic's conclusion (whether it is justified and why), and the rule's risk level, you must decide the escalation outcome: Acceptable (no action needed), Suggest Revision (recommend changing the clause), or Escalate for Human Review (needs lawyer review). Optionally suggest fallback_language: a safer or more balanced clause wording. Return only valid JSON: "escalation", "fallback_language" (string or null), "reason"."""
+
+EVALUATOR_USER_TEMPLATE = """Scanner finding:
+{finding_summary}
+
+Rule risk level: {risk_level}
+
+Critic conclusion:
+- Justified: {critic_justified}
+- Confidence: {critic_confidence}
+- Reason: {critic_reason}
+
+Clause excerpt (first 500 chars):
+{clause_excerpt}
+
+Decide escalation: "Acceptable" | "Suggest Revision" | "Escalate for Human Review". If Suggest Revision or Escalate, you may provide optional fallback_language (suggested replacement or safer wording).
+
+Return JSON only:
+{{ "escalation": "Acceptable" or "Suggest Revision" or "Escalate for Human Review", "fallback_language": "..." or null, "reason": "..." }}"""

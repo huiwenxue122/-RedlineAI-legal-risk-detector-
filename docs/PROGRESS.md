@@ -101,6 +101,12 @@ This document records what was done in each phase, **main problems encountered**
 - **Demo**: `scripts/run_critic_demo.py` — runs Scanner on a clause, then runs Critic on each finding and prints justified/reason.
 - **Result**: Downstream Evaluator can use Critic output to filter or weight findings.
 
+### Task 11: Evaluator agent
+
+- **Done**: `app/agents/prompts.py` (EVALUATOR_SYSTEM, EVALUATOR_USER_TEMPLATE); `app/agents/evaluator.py` (`evaluate_escalation(finding, critic_result, risk_level, clause_text)`). Takes Scanner finding + Critic result + rule risk level; returns `{ "escalation": "Acceptable" | "Suggest Revision" | "Escalate for Human Review", "fallback_language": str | None, "reason": str }`.
+- **Demo**: `scripts/run_evaluator_demo.py` — runs Scanner → Critic → Evaluator on one clause and prints escalation, fallback_language, reason per finding.
+- **Result**: Output aligns with risk_memo for API/frontend; ready for LangGraph orchestration (Task 12).
+
 ---
 
 ## Current status summary
@@ -113,7 +119,7 @@ This document records what was done in each phase, **main problems encountered**
 | Scanner         | ✅     | Single-clause and full-contract scan; synthetic “must-hit” clause triggers findings; real-clause 0 explained by “empty text” vs “rule not matched” |
 | Full-contract scan | ✅  | scan_all_clauses outputs TSV and writes TRIGGERS to Neo4j |
 | Critic          | ✅     | `evaluate_finding`; uses clause + graph context to output justified/reason |
-| Evaluator       | ⏳     | Not implemented |
+| Evaluator       | ✅     | `evaluate_escalation`; outputs escalation, fallback_language, reason |
 | LangGraph       | ⏳     | Not implemented |
 | API / Frontend  | ⏳     | Stub only; review flow not wired |
 
@@ -127,5 +133,6 @@ This document records what was done in each phase, **main problems encountered**
 - **Scanner (full contract)**: `python scripts/scan_all_clauses.py "EX-10.4(a)"`
 - **Diagnostics**: `python scripts/run_scanner_diagnostic.py`; `python scripts/run_scanner_verifications.py "EX-10.4(a)"`
 - **Critic (Task 10)**: `python scripts/run_critic_demo.py "EX-10.4(a)" section_5_1`
+- **Evaluator (Task 11)**: `python scripts/run_evaluator_demo.py "EX-10.4(a)" section_7_2` (Scanner → Critic → Evaluator)
 
 More commands: [commands.md](commands.md).

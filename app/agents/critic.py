@@ -1,7 +1,7 @@
 """
 Critic Agent (Task 10): evaluate whether a Scanner finding is justified.
 Uses full clause text and graph context (definitions, cross-refs, obligations)
-to decide if the finding holds. Output: { "justified": bool, "reason": str } for Evaluator.
+to decide if the finding holds. Output: { "justified": bool, "reason": str, "confidence": str } for Evaluator.
 """
 import json
 import re
@@ -41,7 +41,7 @@ def _extract_json(content: str) -> dict:
         return json.loads(repair_json(text))
     except Exception:
         pass
-    return {"justified": False, "reason": "Failed to parse critic response."}
+    return {"justified": False, "reason": "Failed to parse critic response.", "confidence": "low"}
 
 
 def evaluate_finding(
@@ -57,7 +57,7 @@ def evaluate_finding(
     finding: dict with "clause_ref", "rule_triggered", "evidence_summary".
     rule_description: optional description/criteria of the rule (e.g. from playbook).
 
-    Returns: { "justified": bool, "reason": str }.
+    Returns: { "justified": bool, "reason": str, "confidence": str } (confidence: "high" | "medium" | "low").
     """
     settings = get_settings()
     if not settings.openai_api_key:
@@ -98,4 +98,7 @@ def evaluate_finding(
     if not isinstance(justified, bool):
         justified = str(justified).lower() in ("true", "1", "yes")
     reason = str(data.get("reason") or "").strip() or "No reason given."
-    return {"justified": justified, "reason": reason}
+    confidence = str(data.get("confidence") or "").strip().lower()
+    if confidence not in ("high", "medium", "low"):
+        confidence = "medium"
+    return {"justified": justified, "reason": reason, "confidence": confidence}

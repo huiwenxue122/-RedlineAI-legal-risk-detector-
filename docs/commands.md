@@ -207,6 +207,16 @@ python scripts/run_critic_demo.py "EX-10.4(a)" section_5_1
 
 省略 clause_id 则随机选一个 clause；若该 clause 无 Scanner findings，会提示先跑有触发的条款或 scan_all_clauses。依赖 Neo4j + OPENAI_API_KEY。
 
+### 任务 11：Evaluator Agent（升级决策 + 建议表述）
+
+对指定条款跑 Scanner → Critic → Evaluator，输出每条 finding 的 Escalation（Acceptable / Suggest Revision / Escalate for Human Review）、可选 Fallback language、Reason：
+
+```bash
+python scripts/run_evaluator_demo.py "EX-10.4(a)" section_7_2
+```
+
+省略 clause_id 则随机选一个 clause。依赖 Neo4j + OPENAI_API_KEY。
+
 ### 启动后端 API（FastAPI）
 
 （后续任务完成后可用）
@@ -258,6 +268,7 @@ npm run dev
 | 任务 9 Scanner 扫完整合同 | `python scripts/scan_all_clauses.py "EX-10.4(a)"` |
 | 任务 9 Scanner 两项验证（一键） | `python scripts/run_scanner_verifications.py "EX-10.4(a)"` |
 | 任务 10 Critic（指定条款） | `python scripts/run_critic_demo.py "EX-10.4(a)" section_5_1` |
+| 任务 11 Evaluator（Scanner→Critic→Evaluator 全链） | `python scripts/run_evaluator_demo.py "EX-10.4(a)" section_7_2` |
 | 启动后端 API     | `uvicorn app.main:app --reload`        |
 | 启动前端         | `cd frontend && npm run dev`          |
 
