@@ -1,0 +1,34 @@
+# ContractSentinel default playbook: 2–3 rules for MVP review
+# Scanner matches clauses against these rules; risk_level used in StructuredRiskMemo
+
+rules:
+  - rule_id: R001
+    description: Unlimited or uncapped liability — party may be exposed to unlimited damages
+    risk_level: High
+    keywords:
+      - "unlimited liability"
+      - "uncapped liability"
+      - "all damages"
+      - "full liability"
+      - "liable for any and all"
+    criteria: "Clause imposes or allows liability without a cap, monetary limit, or exclusion of indirect/consequential damages."
+
+  - rule_id: R002
+    description: Unilateral termination without cause — one party may terminate for convenience
+    risk_level: High
+    keywords:
+      - "terminate at any time"
+      - "without cause"
+      - "for convenience"
+      - "for any reason"
+      - "upon written notice"
+    criteria: "Clause permits one party to terminate the agreement without cause, with only notice or short notice."
+
+  - rule_id: R003
+    description: Broad indemnification — indemnity scope may be overly broad
+    risk_level: Medium
+    keywords:
+      - "indemnify"
+      - "hold harmless"
+      - "defend and indemnify"
+    criteria: "Clause requires one party to indemnify the other; flag for review of scope (e.g. third-party claims only vs all claims)."

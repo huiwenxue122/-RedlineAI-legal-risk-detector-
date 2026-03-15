@@ -1,9 +1,6 @@
-# ContractSentinel default playbook: 2–3 rules for MVP review
-# Scanner matches clauses against these rules; risk_level used in StructuredRiskMemo
-
 rules:
   - rule_id: R001
-    description: Unlimited or uncapped liability — party may be exposed to unlimited damages
+    description: Unlimited or uncapped liability - one party may be exposed to unlimited damages or losses without a cap.
     risk_level: High
     keywords:
       - "unlimited liability"
@@ -11,10 +8,12 @@ rules:
       - "all damages"
       - "full liability"
       - "liable for any and all"
-    criteria: "Clause imposes or allows liability without a cap, monetary limit, or exclusion of indirect/consequential damages."
+      - "without limitation"
+      - "no limitation of liability"
+    criteria: "Flag clauses that impose or preserve liability without a monetary cap, without a limitation structure, or with unusually broad carve-outs that make liability effectively uncapped."
 
   - rule_id: R002
-    description: Unilateral termination without cause — one party may terminate for convenience
+    description: Unilateral termination without cause - one party may terminate for convenience or on notice without reciprocal protection.
     risk_level: High
     keywords:
       - "terminate at any time"
@@ -22,13 +21,135 @@ rules:
       - "for convenience"
       - "for any reason"
       - "upon written notice"
-    criteria: "Clause permits one party to terminate the agreement without cause, with only notice or short notice."
+      - "terminate on notice"
+      - "sole discretion"
+    criteria: "Flag clauses that allow one party to terminate without breach or cause, including termination for convenience, unilateral termination on notice, or discretionary termination rights that are not balanced by equivalent rights for the counterparty."
 
   - rule_id: R003
-    description: Broad indemnification — indemnity scope may be overly broad
+    description: Broad indemnification - indemnity scope may be overly broad, including defense and hold harmless obligations beyond reasonable limits.
     risk_level: Medium
     keywords:
       - "indemnify"
       - "hold harmless"
       - "defend and indemnify"
-    criteria: "Clause requires one party to indemnify the other; flag for review of scope (e.g. third-party claims only vs all claims)."
+      - "defend, indemnify, and hold harmless"
+      - "any and all claims"
+      - "all losses"
+    criteria: "Flag clauses that require one party to indemnify the other in a broad or one-sided manner, especially where the obligation covers all claims, all losses, direct and indirect damages, or includes a duty to defend without clear limitations."
+
+  - rule_id: R004
+    description: Broad data usage rights - the vendor or counterparty may use, retain, disclose, or exploit company/customer data too broadly.
+    risk_level: High
+    keywords:
+      - "use any data"
+      - "use customer data"
+      - "use company data"
+      - "for any purpose"
+      - "retain data"
+      - "aggregate data"
+      - "analytics"
+      - "de-identified data"
+      - "business purposes"
+    criteria: "Flag clauses granting a party broad rights to use, retain, analyze, disclose, commercialize, or derive value from company data, customer data, or usage data beyond what is necessary to perform the services."
+
+  - rule_id: R005
+    description: Intellectual property ownership transfer - contract may assign ownership of deliverables, feedback, data, or derivative works too broadly.
+    risk_level: High
+    keywords:
+      - "assign all right title and interest"
+      - "work made for hire"
+      - "exclusive ownership"
+      - "feedback"
+      - "derivative works"
+      - "all intellectual property rights"
+      - "ownership of deliverables"
+    criteria: "Flag clauses that transfer or expand ownership of intellectual property, deliverables, feedback, derivative works, or related materials in a way that is broader than expected or not limited to specifically commissioned work."
+
+  - rule_id: R006
+    description: Unilateral amendment or policy change - one party may change the agreement, policies, pricing, or service terms without mutual consent.
+    risk_level: High
+    keywords:
+      - "may modify"
+      - "may amend"
+      - "may update these terms"
+      - "sole discretion"
+      - "from time to time"
+      - "posted policies"
+      - "revised terms"
+      - "updated pricing"
+    criteria: "Flag clauses allowing one party to amend the agreement, service terms, policies, fees, or operating requirements unilaterally, especially where continued use is deemed acceptance."
+
+  - rule_id: R007
+    description: Auto-renewal or renewal asymmetry - agreement may renew automatically without balanced notice rights or clear opt-out protections.
+    risk_level: Medium
+    keywords:
+      - "automatically renew"
+      - "auto-renew"
+      - "successive terms"
+      - "renewal term"
+      - "unless notice of non-renewal"
+      - "deemed renewed"
+    criteria: "Flag clauses that automatically renew the agreement or extend its term unless notice is given, especially where notice windows are narrow, one-sided, or operationally easy to miss."
+
+  - rule_id: R008
+    description: Audit or inspection rights - one party may inspect systems, books, records, or facilities too broadly or too frequently.
+    risk_level: Medium
+    keywords:
+      - "audit"
+      - "inspect"
+      - "books and records"
+      - "records"
+      - "facilities"
+      - "systems"
+      - "compliance review"
+      - "on-site inspection"
+    criteria: "Flag clauses granting broad audit, inspection, or access rights over records, systems, personnel, or facilities without reasonable notice, scope limits, confidentiality protections, or frequency restrictions."
+
+  - rule_id: R009
+    description: Payment imbalance or aggressive invoicing terms - customer may face accelerated payment obligations, short dispute windows, or weak fee protections.
+    risk_level: Medium
+    keywords:
+      - "immediately due"
+      - "non-refundable"
+      - "no setoff"
+      - "no offset"
+      - "short payment period"
+      - "late fee"
+      - "interest at the maximum rate"
+      - "deemed accepted"
+    criteria: "Flag clauses with unusually aggressive invoicing, payment timing, fee collection, acceptance, or dispute rules, including non-refundable fees, immediate acceleration, narrow invoice dispute periods, and no-offset language."
+
+  - rule_id: R010
+    description: Subcontracting or delegation without approval - service provider may delegate material obligations without customer consent.
+    risk_level: Medium
+    keywords:
+      - "subcontract"
+      - "delegate"
+      - "third party provider"
+      - "affiliate may perform"
+      - "assign personnel"
+      - "outsource"
+    criteria: "Flag clauses allowing a party to subcontract, delegate, or transfer material performance obligations to third parties or affiliates without prior notice, approval, or responsibility safeguards."
+
+  - rule_id: R011
+    description: Confidentiality asymmetry or overbroad exceptions - confidentiality obligations may be one-sided or contain carve-outs that weaken protection.
+    risk_level: Medium
+    keywords:
+      - "confidential information"
+      - "may disclose"
+      - "residuals"
+      - "independently developed"
+      - "notwithstanding confidentiality"
+      - "no obligation of confidence"
+    criteria: "Flag clauses where confidentiality obligations are materially one-sided, subject to broad exceptions, weakened by residual knowledge language, or allow disclosure/use beyond standard service-performance purposes."
+
+  - rule_id: R012
+    description: Survival of obligations beyond reasonable scope - contractual obligations continue after termination in a way that may be unusually broad or indefinite.
+    risk_level: Low
+    keywords:
+      - "survive termination"
+      - "shall survive"
+      - "continue indefinitely"
+      - "after expiration"
+      - "after termination"
+    criteria: "Flag clauses causing obligations, restrictions, indemnities, licenses, or liabilities to survive termination in a broad, indefinite, or commercially unusual way."
