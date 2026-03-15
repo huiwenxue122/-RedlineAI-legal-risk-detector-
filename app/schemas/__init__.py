@@ -7,6 +7,7 @@ from app.schemas.contract import (
     Obligation,
     Contract,
 )
+from app.schemas.playbook import Rule, RiskLevel
 
 __all__ = [
     "Clause",
@@ -15,4 +16,6 @@ __all__ = [
     "Party",
     "Obligation",
     "Contract",
+    "Rule",
+    "RiskLevel",
 ]
