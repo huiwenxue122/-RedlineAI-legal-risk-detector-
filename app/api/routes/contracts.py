@@ -7,7 +7,10 @@ Contract upload and demo endpoints.
 
 Note: The extraction pipeline (rule-based clause segmenter) is tuned for contracts with
 "Section X.Y" numbering. Other PDFs still run but may produce fewer clauses (LLM-only).
+
+Demo can take 1–3 minutes (LLM extraction is slow); run in thread to avoid blocking the server.
 """
+import asyncio
 import uuid
 from pathlib import Path
 
@@ -37,8 +40,12 @@ async def upload_contract(file: UploadFile = File(...)):
     if not raw:
         raise HTTPException(status_code=400, detail="Empty file")
     contract_id = Path(file.filename).stem or f"contract_{uuid.uuid4().hex[:8]}"
+    loop = asyncio.get_event_loop()
     try:
-        contract, ingest_stats = run_structural_pipeline(raw, contract_id=contract_id)
+        contract, ingest_stats = await loop.run_in_executor(
+            None,
+            lambda: run_structural_pipeline(raw, contract_id=contract_id),
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Pipeline failed: {e}")
     return {
@@ -55,11 +62,16 @@ async def demo_contract():
     """
     Run the full pipeline on the built-in sample contract (EX-10.4(a).pdf).
     Use this for MVP demo so the sample-based data flow always works without upload.
+    May take 1–3 minutes (LLM extraction). If it hangs, check the uvicorn terminal for errors.
     """
     if not SAMPLE_PDF_PATH.exists():
         raise HTTPException(status_code=503, detail="Sample contract file not found")
+    loop = asyncio.get_event_loop()
     try:
-        contract, ingest_stats = run_structural_pipeline(SAMPLE_PDF_PATH, contract_id=SAMPLE_CONTRACT_ID)
+        contract, ingest_stats = await loop.run_in_executor(
+            None,
+            lambda: run_structural_pipeline(SAMPLE_PDF_PATH, contract_id=SAMPLE_CONTRACT_ID),
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Pipeline failed: {e}")
     return {
