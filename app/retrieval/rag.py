@@ -17,6 +17,10 @@ def get_context_for_clause(
     """
     Return structured context for one clause: its text, graph context string, and optional snippets.
     Output: { "clause_text", "section_id", "graph_context", "snippets" }.
+
+    Note: snippets currently contains only reference-based snippets (REFERENCES in/out).
+    For clauses without references, snippets may be empty even when graph_context
+    includes definitions or obligations.
     """
     nb = get_clause_neighborhood(contract_id, clause_id, max_refs=max_refs)
     clause_text = nb.get("clause_text") or ""

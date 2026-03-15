@@ -103,6 +103,7 @@
 | **功能说明** | graph_context：调用 graph.query 获取指定条款的定义与引用邻域，组装成一段「图上下文」文本；chunking：按条款/页分块（若做向量检索）；rag：对外接口，给定 contract_id、clause_id（或 query），返回「该条款文本 + 图上下文」或「多段相关文本 + 图上下文」。 |
 | **输入** | contract_id；clause_id 或 query 文本；可选 top_k、深度。 |
 | **输出** | 结构化的检索结果：`{ "clause_text": str, "graph_context": str, "snippets": [...] }` 或类似，供 agents 使用。 |
+| **说明** | **snippets** currently contains only reference-based snippets (outgoing/incoming REFERENCES). For clauses without references, snippets may be empty even when graph_context includes definitions or obligations. |
 
 ---
 
