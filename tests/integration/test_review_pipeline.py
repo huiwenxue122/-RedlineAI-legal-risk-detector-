@@ -20,12 +20,14 @@ CONTRACT_ID = "EX-10.4(a)"
 
 
 def _integration_ready():
-    """Skip if Neo4j or OpenAI not configured."""
-    from app.config import get_settings
-    s = get_settings()
-    if not (s.openai_api_key or "").strip():
+    """Skip if Neo4j or OpenAI not configured (check env so get_settings() is not required)."""
+    if not (os.environ.get("OPENAI_API_KEY") or "").strip():
         return False, "OPENAI_API_KEY not set"
-    if not (s.neo4j_password or "").strip():
+    if not (os.environ.get("NEO4J_URI") or "").strip():
+        return False, "NEO4J_URI not set"
+    if not (os.environ.get("NEO4J_USER") or "").strip():
+        return False, "NEO4J_USER not set"
+    if not (os.environ.get("NEO4J_PASSWORD") or "").strip():
         return False, "NEO4J_PASSWORD not set"
     return True, None
 

@@ -12,12 +12,10 @@ _driver: Optional[Driver] = None
 
 
 def get_driver() -> Driver:
-    """Return a Neo4j driver instance (cached). Raises if neo4j_password not set."""
+    """Return a Neo4j driver instance (cached). Neo4j env vars are validated at settings load."""
     global _driver
     if _driver is None:
         s = get_settings()
-        if not s.neo4j_password:
-            raise ValueError("NEO4J_PASSWORD is not set; cannot connect to Neo4j")
         _driver = GraphDatabase.driver(
             s.neo4j_uri,
             auth=(s.neo4j_user, s.neo4j_password),

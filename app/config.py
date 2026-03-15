@@ -1,7 +1,8 @@
 """
 Central config: env vars for OpenAI, Neo4j, etc.
-Use .env file or export in shell.
+Use .env file or export in shell. Neo4j vars are required (no silent fallback).
 """
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -19,13 +20,30 @@ class Settings(BaseSettings):
     # 单次调用时发给 API 的合同文本最大字符数；snippet-only clause text 下用全文可跑完并得到约 40 clauses
     openai_max_input_chars: int = 120000
 
-    # Neo4j
-    neo4j_uri: str = "bolt://localhost:7687"
-    neo4j_user: str = "neo4j"
+    # Neo4j (required: set NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD in .env or environment)
+    neo4j_uri: str = ""
+    neo4j_user: str = ""
     neo4j_password: str = ""
 
     # App
     debug: bool = False
+
+    @model_validator(mode="after")
+    def require_neo4j_env(self) -> "Settings":
+        missing = []
+        if not (self.neo4j_uri or self.neo4j_uri.strip()):
+            missing.append("NEO4J_URI")
+        if not (self.neo4j_user or self.neo4j_user.strip()):
+            missing.append("NEO4J_USER")
+        if not (self.neo4j_password or self.neo4j_password.strip()):
+            missing.append("NEO4J_PASSWORD")
+        if missing:
+            raise ValueError(
+                "Missing required environment variable(s): "
+                + ", ".join(missing)
+                + ". Set them in .env (local) or in Render environment (deploy)."
+            )
+        return self
 
 
 _settings: Settings | None = None
