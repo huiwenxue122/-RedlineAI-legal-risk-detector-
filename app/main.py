@@ -30,6 +30,18 @@ def unhandled_exception_handler(request, exc: Exception):
         content={"detail": "Internal server error", "error": str(exc)},
     )
 
+@app.get("/")
+def root():
+    """Root: point to API docs and health."""
+    return {
+        "name": "ContractSentinel API",
+        "version": "0.1.0",
+        "docs": "/docs",
+        "health": "/health",
+        "contracts_demo": "POST /contracts/demo",
+        "review": "GET /review?contract_id=...",
+    }
+
 app.include_router(health.router)
 app.include_router(contracts.router)
 app.include_router(review.router)
