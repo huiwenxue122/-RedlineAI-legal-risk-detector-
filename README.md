@@ -135,12 +135,60 @@ In the UI, each issue is presented as an evidence-based review card containing:
 
 | Area | Technologies |
 |------|--------------|
-| **Document Parsing** | Marker (PDF parsing), layout-aware text extraction |
+| **Document Parsing** | PyMuPDF (PDF parsing), layout-aware text extraction |
 | **Knowledge Graph** | Neo4j, LLM entity extraction, clause / definition / reference relationships |
 | **Reasoning** | LangGraph orchestration, LLM agents (Scanner / Critic / Evaluator), RAG + graph context retrieval |
 | **Backend** | FastAPI, Python |
-| **Frontend** | React / Next.js |
-| **Evaluation** | Ragas, hand-labeled benchmark dataset |
+| **Frontend** | Next.js 14 (App Router), React, TypeScript, Tailwind |
+| **Evaluation** | Benchmark / metrics / baselines (Phase 6, optional for MVP) |
+
+---
+
+## Getting started
+
+### 1. Clone and install
+
+```bash
+cd ContractSentinel
+python -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+### 2. Environment variables
+
+Copy `.env.example` to `.env` and set:
+
+- **OPENAI_API_KEY** — required for extraction and review (LLM).
+- **NEO4J_URI**, **NEO4J_USER**, **NEO4J_PASSWORD** — required for graph ingest and review (Neo4j).
+
+See `app/config.py` for all options. Without Neo4j, the pipeline still runs but ingest is skipped; review needs the graph.
+
+### 3. Run backend
+
+```bash
+uvicorn app.main:app --reload
+```
+
+API: http://127.0.0.1:8000. Docs: http://127.0.0.1:8000/docs.
+
+### 4. Run frontend
+
+```bash
+cd frontend && npm install && npm run dev
+```
+
+UI: http://localhost:3000. Use “Use sample contract” then “Start review” for the full demo.
+
+### 5. Run tests
+
+- **Unit tests** (no Neo4j/OpenAI needed for most; some use mocks):  
+  `python -m pytest tests/unit -v`
+- **Integration test** (requires Neo4j + OPENAI_API_KEY; ~3 min):  
+  `python -m pytest tests/integration -v`  
+  If env is not set, the integration test is skipped.
+
+More commands: **[docs/commands.md](docs/commands.md)**. Module roles and data flow: **[docs/architecture.md](docs/architecture.md)**, **[docs/internal/todo-list.md](docs/internal/todo-list.md)**.
 
 ---
 
@@ -167,10 +215,13 @@ Development is tracked in phases; each phase is documented with **what was done*
 | Phase | Status | Summary |
 |-------|--------|---------|
 | **Phase 0** | Done | Project skeleton, config, schemas (Contract, Clause, Playbook, RiskMemo). |
-| **Phase 1** | Done | PDF parsing (Marker), rule-based clause segmentation, LLM extraction, cross-references, Neo4j ingest & query. End-to-end: PDF → graph. |
+| **Phase 1** | Done | PDF parsing (PyMuPDF), rule-based clause segmentation, LLM extraction, cross-references, Neo4j ingest & query. End-to-end: PDF → graph. |
 | **Phase 2** | Done | Playbook loading, graph-augmented retrieval (clause text + graph context per clause). |
-| **Phase 3** | In progress | Scanner Agent (playbook-based risk scan), full-contract scan, writing findings back to Neo4j as `Clause -[:TRIGGERS]-> Rule` for the Critic. |
-| **Phase 4–5** | Pending | Critic/Evaluator agents, LangGraph orchestration, API routes, frontend. |
+| **Phase 3** | Done | Scanner, Critic, Evaluator; full-contract scan; LangGraph orchestration; StructuredRiskMemo. |
+| **Phase 4** | Done | API: health, contracts (upload/demo), review; CORS and exception handling. |
+| **Phase 5** | Done | Next.js frontend: two-column layout, RiskCard + EvidenceChain, i18n, full upload→review flow. |
+| **Phase 6** | Skipped | Evaluation / benchmark / baselines (optional for MVP). |
+| **Phase 7** | Done | Unit tests; integration test (PDF→review→StructuredRiskMemo). |
 
 **Notable issues resolved:**
 
@@ -178,7 +229,7 @@ Development is tracked in phases; each phase is documented with **what was done*
 - **Shell error when passing contract ID** — Contract IDs with parentheses (e.g. `EX-10.4(a)`) must be quoted in zsh to avoid `number expected`.
 - **Findings written back to graph** — Full-contract scan now creates `Rule` nodes and `Clause -[:TRIGGERS {evidence}]-> Rule` edges so the Critic can read them directly.
 
-Full detail (problems, solutions, and results per phase) is in **[docs/PROGRESS.md](docs/PROGRESS.md)**. For the rest of the doc layout (commands, architecture, internal), see **[docs/README.md](docs/README.md)**.
+Full detail: **[docs/PROGRESS.md](docs/PROGRESS.md)**. Commands: **[docs/commands.md](docs/commands.md)**.
 
 ---
 

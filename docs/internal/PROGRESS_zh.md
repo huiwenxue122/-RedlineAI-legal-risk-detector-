@@ -129,6 +129,25 @@
 
 ---
 
+## Phase 7：测试与文档
+
+### 任务 23：单元测试
+
+- **完成**：`tests/unit/` 下 test_parsing、test_extraction、test_graph、test_retrieval、test_agents；`tests/conftest.py`（fixture：最小 PDF、样本文本/条款、mock Neo4j）。覆盖 parse_pdf、strip_repeated_headers_footers、segment_clauses、extract_cross_references、ingest_contract、get_clause_neighborhood、get_context_for_clause、build_graph_context、scan_clause、evaluate_finding、evaluate_escalation（Neo4j/OpenAI 用 mock）。
+- **结果**：`pytest tests/unit -v` 共 20 条单测，无需真实 Neo4j/OpenAI。
+
+### 任务 24：集成测试
+
+- **完成**：`tests/integration/test_review_pipeline.py` — 用样本 PDF 跑 run_structural_pipeline → run_review，断言返回 StructuredRiskMemo 及每项含 clause、risk_level、rule_triggered、reason、escalation。未配置 NEO4J_PASSWORD 或 OPENAI_API_KEY 时自动 skip。标记 `@pytest.mark.integration`，`pytest.ini` 注册。E2E（Playwright/Cypress）为可选。
+- **结果**：`pytest tests/integration -v` 运行 1 条集成测试（约 3 分钟，需 Neo4j + OpenAI）。
+
+### 任务 25：README 与文档更新
+
+- **完成**：README.md 补充 Getting started（安装、环境变量、启动后端/前端、运行单测与集成测试）；Tech stack 更新为 PyMuPDF、Next.js 14；Progress 表更新为 Phase 0～7（Phase 6 暂不实施）。docs/commands.md 已含单测与集成测试命令。
+- **结果**：新成员可按 README 跑通项目并执行测试；各阶段详情见 docs/PROGRESS.md。
+
+---
+
 ## 当前状态小结
 
 | 层级           | 状态 | 说明 |
@@ -142,5 +161,8 @@
 | API            | ✅   | health、contracts（upload/demo）、review；CORS + 异常处理 |
 | 前端           | ✅   | Next.js 布局、RiskCard + EvidenceChain、中英双语、上传→审查全流程 |
 | Phase 6 评估与基线 | ⏸️  | 暂不实施（MVP 不需要 benchmark / 指标 / 基线对比）|
+| 单元测试       | ✅   | tests/unit，20 条，mock Neo4j/OpenAI |
+| 集成测试       | ✅   | tests/integration，PDF→review→StructuredRiskMemo，需 Neo4j+OpenAI |
+| 文档           | ✅   | README Getting started + Progress 表，PROGRESS 记录各阶段 |
 
 更多命令见 `docs/commands.md`。

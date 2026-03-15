@@ -130,6 +130,8 @@ This document records what was done in each phase, **main problems encountered**
 | API             | ✅     | Health, contracts (upload/demo), review; CORS + exception handling |
 | Frontend        | ✅     | Next.js layout, RiskCard + EvidenceChain, i18n, full upload→review flow |
 | Phase 6 (Evaluation) | ⏸️  | Skipped for now (benchmark / metrics / baselines not required for MVP) |
+| Unit tests           | ✅  | tests/unit (parsing, extraction, graph, retrieval, agents); mocks for Neo4j/OpenAI |
+| Integration test     | ✅  | tests/integration/test_review_pipeline.py (PDF→review→StructuredRiskMemo; skip if no Neo4j/OpenAI) |
 
 ---
 
@@ -187,6 +189,25 @@ This document records what was done in each phase, **main problems encountered**
 
 ---
 
+## Phase 7: Tests and documentation
+
+### Task 23: Unit tests
+
+- **Done**: `tests/unit/test_parsing.py`, `test_extraction.py`, `test_graph.py`, `test_retrieval.py`, `test_agents.py`; `tests/conftest.py` (fixtures: minimal PDF, sample text/clauses, mock Neo4j). Parsing: parse_pdf, strip_repeated_headers_footers. Extraction: segment_clauses, extract_cross_references, is_plausible_subsection_start. Graph: ingest_contract and get_clause_neighborhood with mocked driver. Retrieval: get_context_for_clause, build_graph_context with mocked get_clause_neighborhood. Agents: scan_clause, evaluate_finding, evaluate_escalation with mocked OpenAI.
+- **Result**: `pytest tests/unit -v` runs 20 tests; no Neo4j/OpenAI required (mocks used).
+
+### Task 24: Integration test
+
+- **Done**: `tests/integration/test_review_pipeline.py` — uses sample PDF, runs run_structural_pipeline then run_review, asserts StructuredRiskMemo schema and item fields (clause, risk_level, rule_triggered, reason, escalation). Skips if NEO4J_PASSWORD or OPENAI_API_KEY not set; skips if ingest was skipped. Marked `@pytest.mark.integration`. `pytest.ini` registers the marker.
+- **Result**: `pytest tests/integration -v` runs one test (~3 min with real Neo4j + OpenAI). E2E (Playwright/Cypress) left optional.
+
+### Task 25: README and documentation
+
+- **Done**: README.md updated with Getting started (install, env vars, run backend/frontend, run unit and integration tests); Tech stack (PyMuPDF, Next.js 14); Progress table (Phases 0–7, Phase 6 skipped). docs/commands.md already had unit and integration test commands.
+- **Result**: New members can follow README to run the project and run tests; full phase detail in docs/PROGRESS.md.
+
+---
+
 ## Script and command quick reference
 
 - **Structural pipeline**: `python scripts/run_structural_pipeline.py "data/sample_contracts/EX-10.4(a).pdf"`
@@ -199,5 +220,7 @@ This document records what was done in each phase, **main problems encountered**
 - **LangGraph (Task 12)**: `python scripts/run_review_graph_demo.py "EX-10.4(a)"` or `--clauses section_5_1 section_7_2`
 - **API**: `uvicorn app.main:app --reload` → http://127.0.0.1:8000; `GET /health`, `POST /contracts/demo`, `GET /review?contract_id=EX-10.4(a)`
 - **Frontend**: `cd frontend && npm run dev` → http://localhost:3000
+- **Unit tests**: `python -m pytest tests/unit -v`
+- **Integration test**: `python -m pytest tests/integration -v` (requires Neo4j + OPENAI_API_KEY)
 
 More commands: [commands.md](commands.md).
