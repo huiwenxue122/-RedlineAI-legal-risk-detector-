@@ -33,6 +33,16 @@ export const translations: Record<
     evidenceCollapse: string;
     justifiedYes: string;
     justifiedNo: string;
+    uploadPdf: string;
+    useDemo: string;
+    startReview: string;
+    loading: string;
+    uploading: string;
+    reviewing: string;
+    runReviewHint: string;
+    noRisks: string;
+    contractIdLabel: string;
+    error: string;
   }
 > = {
   zh: {
@@ -67,6 +77,16 @@ export const translations: Record<
     evidenceCollapse: "收起证据",
     justifiedYes: "是",
     justifiedNo: "否",
+    uploadPdf: "上传 PDF",
+    useDemo: "使用样本合同",
+    startReview: "开始审查",
+    loading: "加载中…",
+    uploading: "解析中…",
+    reviewing: "审查中…",
+    runReviewHint: "上传或使用样本后点击「开始审查」",
+    noRisks: "未发现风险项",
+    contractIdLabel: "合同",
+    error: "错误",
   },
   en: {
     appTitle: "ContractSentinel — Evidence-Based Contract Review",
@@ -100,6 +120,16 @@ export const translations: Record<
     evidenceCollapse: "Collapse",
     justifiedYes: "Yes",
     justifiedNo: "No",
+    uploadPdf: "Upload PDF",
+    useDemo: "Use sample contract",
+    startReview: "Start review",
+    loading: "Loading…",
+    uploading: "Parsing…",
+    reviewing: "Reviewing…",
+    runReviewHint: "Upload or use sample, then click Start review",
+    noRisks: "No risk items found",
+    contractIdLabel: "Contract",
+    error: "Error",
   },
 };
 
