@@ -3,7 +3,22 @@
 **Agentic Legal Risk Review System for Contract Escalation**
 
 **Live demo:** **[https://contract-sentinel.vercel.app](https://contract-sentinel.vercel.app)** — open the link to run the full flow (sample contract → review → risk memo) in the browser.
+⚠️ Note on First Run
 
+The backend is hosted on the Render free tier, which may spin down after inactivity.
+
+If the system has been idle, the first request may take 30–60 seconds while the server wakes up.
+In some cases, the first attempt may fail with a network error.
+
+If that happens:
+
+Wait a few seconds
+
+Refresh the page
+
+Run the demo again
+
+The system should work normally after the backend service becomes active.
 ---
 
 ContractSentinel is a LegalTech AI system that models contract review as a policy-driven reasoning workflow rather than a simple chatbot or summarization tool.
