@@ -2,6 +2,10 @@
 
 **Agentic Legal Risk Review System for Contract Escalation**
 
+**Live demo:** **[https://contract-sentinel.vercel.app](https://contract-sentinel.vercel.app)** — open the link to run the full flow (sample contract → review → risk memo) in the browser.
+
+---
+
 ContractSentinel is a LegalTech AI system that models contract review as a policy-driven reasoning workflow rather than a simple chatbot or summarization tool.
 
 The system parses contracts into a graph-aware legal structure, runs a multi-agent reasoning pipeline, and produces a structured risk memo with evidence chains to support human legal review.
@@ -159,10 +163,10 @@ pip install -r requirements.txt
 
 Copy `.env.example` to `.env` and set:
 
+- **NEO4J_URI**, **NEO4J_USER**, **NEO4J_PASSWORD** — required for graph ingest and review (Neo4j). The app will not start if any of these are missing; no silent fallback to localhost.
 - **OPENAI_API_KEY** — required for extraction and review (LLM).
-- **NEO4J_URI**, **NEO4J_USER**, **NEO4J_PASSWORD** — required for graph ingest and review (Neo4j).
 
-See `app/config.py` for all options. Without Neo4j, the pipeline still runs but ingest is skipped; review needs the graph.
+See `app/config.py` for all options. For the frontend, optional: `NEXT_PUBLIC_API_URL` (defaults to `http://localhost:8000`); see `frontend/.env.example`.
 
 ### 3. Run backend
 
@@ -188,7 +192,18 @@ UI: http://localhost:3000. Use “Use sample contract” then “Start review”
   `python -m pytest tests/integration -v`  
   If env is not set, the integration test is skipped.
 
-More commands: **[docs/commands.md](docs/commands.md)**. Module roles and data flow: **[docs/architecture.md](docs/architecture.md)**, **[docs/internal/todo-list.md](docs/internal/todo-list.md)**.
+More commands: **[docs/commands.md](docs/commands.md)**. Module roles and data flow: **[docs/architecture.md](docs/architecture.md)**.
+
+---
+
+## Deployment
+
+The project is deployed so anyone can use it in the browser:
+
+- **Frontend:** [contract-sentinel.vercel.app](https://contract-sentinel.vercel.app) (Vercel)
+- **Backend API:** Render (Web Service); Neo4j on Aura
+
+Config is fully environment-driven: no hardcoded credentials. Backend requires `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD`, `OPENAI_API_KEY`; frontend needs `NEXT_PUBLIC_API_URL` pointing at the backend (set at build time on Vercel). Step-by-step: **[docs/deploy-frontend.md](docs/deploy-frontend.md)**.
 
 ---
 
@@ -222,14 +237,16 @@ Development is tracked in phases; each phase is documented with **what was done*
 | **Phase 5** | Done | Next.js frontend: two-column layout, RiskCard + EvidenceChain, i18n, full upload→review flow. |
 | **Phase 6** | Skipped | Evaluation / benchmark / baselines (optional for MVP). |
 | **Phase 7** | Done | Unit tests; integration test (PDF→review→StructuredRiskMemo). |
+| **Phase 8** | Done | Neo4j config env-only (no silent fallback); backend on Render; frontend on Vercel; live demo. |
 
 **Notable issues resolved:**
 
 - **Scanner always returning 0 findings** — Root cause was sometimes empty `clause_text` (clause not in graph or no text stored). We added a diagnostic (synthetic “must-hit” clause) to confirm the Scanner works, and debug output to inspect inputs. We now distinguish “no data” (empty text) vs “rule not matched” (text present but no playbook match).
 - **Shell error when passing contract ID** — Contract IDs with parentheses (e.g. `EX-10.4(a)`) must be quoted in zsh to avoid `number expected`.
 - **Findings written back to graph** — Full-contract scan now creates `Rule` nodes and `Clause -[:TRIGGERS {evidence}]-> Rule` edges so the Critic can read them directly.
+- **Deployment** — Neo4j credentials must be set in Render; frontend needs `NEXT_PUBLIC_API_URL` on Vercel and a redeploy after changing it. Render free tier may cold-start; first request can take ~1 min.
 
-Full detail: **[docs/PROGRESS.md](docs/PROGRESS.md)**. Commands: **[docs/commands.md](docs/commands.md)**.
+Full detail: **[docs/PROGRESS.md](docs/PROGRESS.md)**. Commands: **[docs/commands.md](docs/commands.md)**. Deploy guide: **[docs/deploy-frontend.md](docs/deploy-frontend.md)**.
 
 ---
 

@@ -164,5 +164,43 @@
 | 单元测试       | ✅   | tests/unit，20 条，mock Neo4j/OpenAI |
 | 集成测试       | ✅   | tests/integration，PDF→review→StructuredRiskMemo，需 Neo4j+OpenAI |
 | 文档           | ✅   | README Getting started + Progress 表，PROGRESS 记录各阶段 |
+| 部署           | ✅   | 后端 Render、前端 Vercel；Neo4j 仅环境变量，无静默回退；见 Phase 8 |
 
 更多命令见 `docs/commands.md`。
+
+---
+
+## Phase 8：生产部署与配置收紧
+
+### 任务 26：Neo4j 配置完全由环境变量驱动
+
+- **完成**：
+  - **app/config.py**：去掉 Neo4j 硬编码默认值（`bolt://localhost:7687`、`neo4j`、`""`）。Neo4j 字段改为空字符串默认，并用 `@model_validator(mode="after")`（`require_neo4j_env`）校验三者均非空；任一项缺失则抛出 `ValueError`，并列出缺失的环境变量名（如 `NEO4J_URI`、`NEO4J_PASSWORD`）。仍用 Pydantic Settings 的 `SettingsConfigDict(env_file=".env", ...)`；环境变量名 `NEO4J_URI` / `NEO4J_USER` / `NEO4J_PASSWORD` 自动映射到字段。
+  - **app/graph/client.py**：`get_driver()` 仅使用 `get_settings()` 的 neo4j_uri/user/password；移除多余的内联密码检查（在 settings 加载时已校验）。
+  - **tests/integration/test_review_pipeline.py**：`_integration_ready()` 改为通过 `os.environ.get("NEO4J_URI")` 等判断是否 skip，避免在未配置 Neo4j 时调用 `get_settings()` 触发校验错误。
+  - **.env.example**（仓库根目录）：占位 `NEO4J_URI`、`NEO4J_USER`、`NEO4J_PASSWORD`、`OPENAI_API_KEY`。**frontend/.env.example**：占位 `NEXT_PUBLIC_API_URL`。
+- **结果**：不再静默回退到 localhost 或空密码；Neo4j 相关环境变量缺失时在启动阶段报错并指明缺失项。本地用 `.env`，Render 用 Render 环境变量。
+
+### 任务 27：后端部署到 Render
+
+- **完成**：后端 API 以 Web Service 形式部署在 Render。在 Render 中配置环境变量：`NEO4J_URI`、`NEO4J_USER`、`NEO4J_PASSWORD`、`OPENAI_API_KEY`（代码中不写明文）。
+- **问题**：首次部署返回 500，Neo4j 报 `Neo.ClientError.Security.Unauthorized`。原因：Render 上填写的 Neo4j 凭证错误或过期（如 Aura 的 URI 格式不对、或在 Aura 重置密码后未同步到 Render）。处理：从 Neo4j Aura「Connect」重新复制 URI/用户/密码，在 Render 中更新环境变量并重新部署。
+- **排查**：曾在 `app/main.py` 启动时临时打印 `neo4j_uri`、`neo4j_user`、`neo4j_password_len` 以确认服务端实际读取值；确认后已删除。
+
+### 任务 28：前端部署到 Vercel
+
+- **完成**：前端（Next.js）部署到 Vercel。项目 Root Directory 设为 `frontend`。环境变量 `NEXT_PUBLIC_API_URL` 指向 Render 后端地址（如 `https://contractsentinel.onrender.com`）。修改该变量后需重新部署，Next.js 会在构建时内联该值。
+- **问题**：首次部署后点击「使用样本」/ demo，风险备忘录区域显示「fail to fetch」。原因：(1) 未设置或未生效 `NEXT_PUBLIC_API_URL`（构建结果里仍是 `http://localhost:8000`）；(2) 或 Render 免费实例冷启动，首请求超时。处理：在 Vercel 中设置 `NEXT_PUBLIC_API_URL` 并重新部署（可不勾选缓存）；若为冷启动，约 1 分钟后重试或先访问 GET /health 唤醒后端。
+- **结果**：一个前端链接（如 `https://xxx.vercel.app`）即可使用完整产品；后端在 Render；CORS 已为 `allow_origins=["*"]`。
+
+### 任务 29：前端构建修复（RiskCard TypeScript）
+
+- **完成**：`frontend/app/components/RiskCard.tsx` 中 `riskLevelLabel(level, t)` 导致类型错误：`useLocale()` 的 `t` 只接受特定文案 key，但参数类型写成了 `(k: string) => string`。将 `t` 的类型收窄为 `(k: "riskLevelHigh" | "riskLevelLow" | "riskLevelMedium") => string`。
+- **结果**：`npm run build` 通过，前端可正常部署。
+
+### 生产部署流程
+
+1. **后端（Render）**：创建 Web Service，连接仓库；设置环境变量 `NEO4J_URI`、`NEO4J_USER`、`NEO4J_PASSWORD`、`OPENAI_API_KEY`。构建：`pip install -r requirements.txt`；启动：`uvicorn app.main:app --host 0.0.0.0 --port $PORT`。
+2. **前端（Vercel）**：导入仓库，Root Directory 设为 `frontend`。设置 `NEXT_PUBLIC_API_URL` 为后端地址（无末尾斜杠）。部署（修改环境变量后需重新部署以让 Next 内联该值）。
+3. **Neo4j（Aura）**：从「Connect」获取 URI/用户/密码；Aura Free 无单独用户管理，该组凭证即唯一 DB 用户。若在 Aura 重置密码，需在 Render 中更新并重新部署。
+4. **文档**：`docs/deploy-frontend.md` 说明 Vercel 及 Render 前端部署方式；`frontend/.env.example` 与根目录 `.env.example` 列出所需变量。

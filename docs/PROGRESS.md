@@ -132,6 +132,7 @@ This document records what was done in each phase, **main problems encountered**
 | Phase 6 (Evaluation) | ⏸️  | Skipped for now (benchmark / metrics / baselines not required for MVP) |
 | Unit tests           | ✅  | tests/unit (parsing, extraction, graph, retrieval, agents); mocks for Neo4j/OpenAI |
 | Integration test     | ✅  | tests/integration/test_review_pipeline.py (PDF→review→StructuredRiskMemo; skip if no Neo4j/OpenAI) |
+| Deployment           | ✅  | Backend on Render; frontend on Vercel; Neo4j env-only (no silent fallback); see Phase 8 |
 
 ---
 
@@ -224,3 +225,40 @@ This document records what was done in each phase, **main problems encountered**
 - **Integration test**: `python -m pytest tests/integration -v` (requires Neo4j + OPENAI_API_KEY)
 
 More commands: [commands.md](commands.md).
+
+---
+
+## Phase 8: Production deployment and config hardening
+
+### Task 26: Neo4j config fully environment-driven
+
+- **Done**:
+  - **app/config.py**: Removed hardcoded Neo4j defaults (`bolt://localhost:7687`, `neo4j`, `""`). Neo4j fields now default to empty string and a `@model_validator(mode="after")` (`require_neo4j_env`) validates that `neo4j_uri`, `neo4j_user`, `neo4j_password` are all non-empty; if any is missing, raises `ValueError` listing the missing env var names (e.g. `NEO4J_URI`, `NEO4J_PASSWORD`). Pydantic Settings still use `SettingsConfigDict(env_file=".env", ...)`; env names `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD` map to fields.
+  - **app/graph/client.py**: `get_driver()` uses only `get_settings().neo4j_uri/user/password`; removed redundant inline password check (validation at settings load is sufficient).
+  - **tests/integration/test_review_pipeline.py**: `_integration_ready()` now checks `os.environ.get("NEO4J_URI")`, `NEO4J_USER`, `NEO4J_PASSWORD`, `OPENAI_API_KEY` to decide skip, so `get_settings()` is not called when Neo4j is not configured (avoids validation error in CI).
+  - **.env.example** (repo root): Placeholders for `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD`, `OPENAI_API_KEY`. **frontend/.env.example**: Placeholder for `NEXT_PUBLIC_API_URL`.
+- **Result**: No silent fallback to localhost or empty password; app fails at startup with a clear error if Neo4j env vars are missing. Local dev uses `.env`; Render uses Render environment variables.
+
+### Task 27: Backend deployed on Render
+
+- **Done**: Backend API deployed as a Web Service on Render. Environment variables set in Render: `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD`, `OPENAI_API_KEY` (no secrets in code).
+- **Issue**: Initial deploy returned `500` with `Neo.ClientError.Security.Unauthorized` — Neo4j authentication failure. Cause: incorrect or outdated credentials in Render (e.g. wrong URI format for Aura, or password reset in Aura not reflected in Render). Resolved by re-copying URI/user/password from Neo4j Aura “Connect” and updating Render env, then redeploying.
+- **Debug**: Temporary startup logs in `app/main.py` printed `neo4j_uri`, `neo4j_user`, `neo4j_password_len` to verify what the server actually loaded; removed after confirming.
+
+### Task 28: Frontend deployed on Vercel
+
+- **Done**: Frontend (Next.js) deployed on Vercel. Project uses Root Directory `frontend`. Environment variable `NEXT_PUBLIC_API_URL` set to the Render backend URL (e.g. `https://contractsentinel.onrender.com`). Redeploy required after setting the var so the value is inlined at build time.
+- **Issue**: After first deploy, “Use sample” / demo showed “fail to fetch” in risk memo area. Causes: (1) `NEXT_PUBLIC_API_URL` not set or not applied (build had baked-in `http://localhost:8000`); (2) or Render free-tier cold start (first request times out). Fix: Set `NEXT_PUBLIC_API_URL` in Vercel and redeploy (without cache); if cold start, retry after ~1 minute or wake backend with GET /health first.
+- **Result**: Single frontend URL (e.g. `https://xxx.vercel.app`) gives full product; backend on Render; CORS already `allow_origins=["*"]`.
+
+### Task 29: Frontend build fix (RiskCard TypeScript)
+
+- **Done**: `frontend/app/components/RiskCard.tsx` — `riskLevelLabel(level, t)` caused type error: `t` from `useLocale()` expects specific translation keys, but parameter was typed as `(k: string) => string`. Fixed by narrowing to `t: (k: "riskLevelHigh" | "riskLevelLow" | "riskLevelMedium") => string`.
+- **Result**: `npm run build` passes; frontend deploys successfully.
+
+### Deployment process (production)
+
+1. **Backend (Render)**: Create Web Service, connect repo, set Root Directory if monorepo; set env vars `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD`, `OPENAI_API_KEY`. Build: `pip install -r requirements.txt`; Start: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`.
+2. **Frontend (Vercel)**: Import repo, Root Directory `frontend`. Set `NEXT_PUBLIC_API_URL` to backend URL (no trailing slash). Deploy (redeploy after changing env so Next.js inlines the value).
+3. **Neo4j (Aura)**: Use “Connect” for URI/user/password; Aura Free has no separate user management — those credentials are the only DB user. If password is reset in Aura, update Render env and redeploy.
+4. **Docs**: `docs/deploy-frontend.md` describes Vercel and Render frontend deployment options; `frontend/.env.example` and root `.env.example` list required vars.
