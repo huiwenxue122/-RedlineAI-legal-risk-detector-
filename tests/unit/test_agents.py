@@ -46,19 +46,55 @@ def test_scan_clause_returns_list_with_mocked_client(sample_rules, mock_openai_c
     assert "evidence_summary" in findings[0]
 
 
-def test_scan_clause_empty_findings_with_mocked_client(sample_rules, mock_openai_chat):
+def test_scan_clause_skips_llm_when_no_keyword_match(sample_rules):
+    """Keyword pre-filter: clause with no matching keywords must return [] without calling LLM."""
+    with patch("app.agents.scanner.OpenAI") as mock_openai_class:
+        findings = scan_clause(
+            clause_text="Governing law is New York.",  # no "indemnify" / "without limitation"
+            clause_ref="section_9_1",
+            rules=sample_rules,
+            graph_context="",
+        )
+    mock_openai_class.assert_not_called()
+    assert findings == []
+
+
+def test_scan_clause_keyword_match_calls_llm(sample_rules, mock_openai_chat):
+    """Keyword pre-filter: clause that matches a keyword must call the LLM."""
     content = '{"findings": []}'
     with patch("app.agents.scanner.OpenAI") as mock_openai_class:
         mock_client = MagicMock()
         mock_client.chat.completions.create = mock_openai_chat(content)
         mock_openai_class.return_value = mock_client
-        findings = scan_clause(
-            clause_text="Governing law is New York.",
-            clause_ref="section_9_1",
+        scan_clause(
+            clause_text="Party A shall indemnify Party B.",  # matches "indemnify"
+            clause_ref="section_7_2",
             rules=sample_rules,
             graph_context="",
         )
-    assert findings == []
+    mock_openai_class.assert_called_once()
+
+
+def test_keyword_filter_only_matched_rules_passed():
+    """_keyword_filter returns only rules whose keywords appear in the clause text."""
+    from app.agents.scanner import _keyword_filter
+    rules = [
+        Rule(rule_id="S001", description="Liability", risk_level=RiskLevel.High,
+             keywords=["unlimited liability", "without limitation"]),
+        Rule(rule_id="S005", description="Payment", risk_level=RiskLevel.Medium,
+             keywords=["net 60", "net 90"]),
+    ]
+    matched = _keyword_filter("Fees are due net 90 days from invoice.", rules)
+    assert len(matched) == 1
+    assert matched[0].rule_id == "S005"
+
+
+def test_keyword_filter_criteria_only_rule_always_passes():
+    """Rules with no keywords (criteria-only) always pass the pre-filter."""
+    from app.agents.scanner import _keyword_filter
+    rule = Rule(rule_id="S999", description="Criteria only", risk_level=RiskLevel.Low, keywords=[])
+    matched = _keyword_filter("Completely unrelated text.", [rule])
+    assert matched == [rule]
 
 
 def test_evaluate_finding_returns_justified_and_reason(mock_openai_chat):

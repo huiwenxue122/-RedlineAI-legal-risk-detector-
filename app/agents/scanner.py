@@ -20,6 +20,23 @@ MAX_CLAUSE_CHARS = 6000
 MAX_GRAPH_CONTEXT_CHARS = 3000
 
 
+def _keyword_filter(clause_text: str, rules: List[Rule]) -> List[Rule]:
+    """
+    Return only rules that have at least one keyword present in clause_text.
+    Case-insensitive substring match. Rules with no keywords always pass through
+    (they rely on criteria-only matching by the LLM).
+    """
+    text_lower = clause_text.lower()
+    matched = []
+    for rule in rules:
+        if not rule.keywords:
+            matched.append(rule)  # criteria-only rule: let LLM decide
+            continue
+        if any(kw.lower() in text_lower for kw in rule.keywords):
+            matched.append(rule)
+    return matched
+
+
 def _rules_to_text(rules: List[Rule]) -> str:
     lines = []
     for r in rules:
@@ -74,19 +91,25 @@ def scan_clause(
     if not rules:
         return []
 
+    clause_text = (clause_text or "")[:MAX_CLAUSE_CHARS]
+
+    # Keyword pre-filter: skip LLM call entirely if no rule has a keyword hit
+    candidate_rules = _keyword_filter(clause_text, rules)
+    if not candidate_rules:
+        return []
+
     settings = get_settings()
     if not settings.openai_api_key:
         raise ValueError("OPENAI_API_KEY is not set")
 
-    clause_text = (clause_text or "")[:MAX_CLAUSE_CHARS]
     graph_context = (graph_context or "").strip()[:MAX_GRAPH_CONTEXT_CHARS]
     if not graph_context:
         graph_context = "(No graph context provided.)"
-    rules_text = _rules_to_text(rules)
+    rules_text = _rules_to_text(candidate_rules)  # only send matched rules
 
     if os.environ.get("CONTRACT_SENTINEL_DEBUG_SCANNER"):
         _debug_len = 800
-        print("=== RULES ===")
+        print(f"=== RULES ({len(candidate_rules)}/{len(rules)} after keyword filter) ===")
         print(rules_text)
         print("\n=== CLAUSE (first {} chars) ===".format(_debug_len))
         print((clause_text or "")[:_debug_len])
