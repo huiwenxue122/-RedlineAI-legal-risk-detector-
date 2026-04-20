@@ -1,6 +1,7 @@
 """
 Unit tests for app.agents: scan_clause, evaluate_finding, evaluate_escalation with mocked OpenAI.
 """
+import json
 from unittest.mock import patch, MagicMock
 
 import pytest
@@ -18,21 +19,26 @@ def sample_rules():
     ]
 
 
-@pytest.fixture
-def mock_openai_chat():
-    """Mock OpenAI client: chat.completions.create returns a response with .choices[0].message.content."""
-    def make_mock(content: str):
-        mock_create = MagicMock()
-        mock_create.return_value.choices = [MagicMock(message=MagicMock(content=content))]
-        return mock_create
-    return make_mock
+def _make_tool_call_response(tool_name: str, arguments: str):
+    """Build a mock OpenAI response with a single tool call."""
+    tool_call = MagicMock()
+    tool_call.id = "call_test_123"
+    tool_call.function.name = tool_name
+    tool_call.function.arguments = arguments
+
+    message = MagicMock()
+    message.tool_calls = [tool_call]
+
+    response = MagicMock()
+    response.choices = [MagicMock(message=message)]
+    return response
 
 
-def test_scan_clause_returns_list_with_mocked_client(sample_rules, mock_openai_chat):
-    content = '{"findings": [{"rule_triggered": "R001", "evidence_summary": "Clause contains indemnity."}]}'
+def test_scan_clause_returns_list_with_mocked_client(sample_rules):
+    arguments = json.dumps({"findings": [{"clause_ref": "section_7_2", "rule_triggered": "R001", "evidence_summary": "Clause contains indemnity."}]})
     with patch("app.agents.scanner.OpenAI") as mock_openai_class:
         mock_client = MagicMock()
-        mock_client.chat.completions.create = mock_openai_chat(content)
+        mock_client.chat.completions.create.return_value = _make_tool_call_response("report_findings", arguments)
         mock_openai_class.return_value = mock_client
         findings = scan_clause(
             clause_text="Party A shall indemnify Party B without limitation.",
@@ -59,12 +65,12 @@ def test_scan_clause_skips_llm_when_no_keyword_match(sample_rules):
     assert findings == []
 
 
-def test_scan_clause_keyword_match_calls_llm(sample_rules, mock_openai_chat):
+def test_scan_clause_keyword_match_calls_llm(sample_rules):
     """Keyword pre-filter: clause that matches a keyword must call the LLM."""
-    content = '{"findings": []}'
+    arguments = json.dumps({"findings": []})
     with patch("app.agents.scanner.OpenAI") as mock_openai_class:
         mock_client = MagicMock()
-        mock_client.chat.completions.create = mock_openai_chat(content)
+        mock_client.chat.completions.create.return_value = _make_tool_call_response("report_findings", arguments)
         mock_openai_class.return_value = mock_client
         scan_clause(
             clause_text="Party A shall indemnify Party B.",  # matches "indemnify"
@@ -97,11 +103,12 @@ def test_keyword_filter_criteria_only_rule_always_passes():
     assert matched == [rule]
 
 
-def test_evaluate_finding_returns_justified_and_reason(mock_openai_chat):
-    content = '{"justified": true, "reason": "Evidence supports the finding.", "confidence": "high"}'
+def test_evaluate_finding_returns_justified_and_reason():
+    # contract_id=None → only submit_verdict tool, single iteration
+    arguments = json.dumps({"justified": True, "reason": "Evidence supports the finding.", "confidence": "high"})
     with patch("app.agents.critic.OpenAI") as mock_openai_class:
         mock_client = MagicMock()
-        mock_client.chat.completions.create = mock_openai_chat(content)
+        mock_client.chat.completions.create.return_value = _make_tool_call_response("submit_verdict", arguments)
         mock_openai_class.return_value = mock_client
         result = evaluate_finding(
             finding={"clause_ref": "section_7_2", "rule_triggered": "R001", "evidence_summary": "Indemnity language."},
@@ -111,13 +118,14 @@ def test_evaluate_finding_returns_justified_and_reason(mock_openai_chat):
     assert "justified" in result
     assert "reason" in result
     assert result["justified"] is True
+    assert result["confidence"] == "high"
 
 
-def test_evaluate_escalation_returns_escalation_and_reason(mock_openai_chat):
-    content = '{"escalation": "Suggest Revision", "fallback_language": "Limit to 24 months.", "reason": "Open-ended survival."}'
+def test_evaluate_escalation_returns_escalation_and_reason():
+    arguments = json.dumps({"escalation": "Suggest Revision", "fallback_language": "Limit to 24 months.", "reason": "Open-ended survival."})
     with patch("app.agents.evaluator.OpenAI") as mock_openai_class:
         mock_client = MagicMock()
-        mock_client.chat.completions.create = mock_openai_chat(content)
+        mock_client.chat.completions.create.return_value = _make_tool_call_response("submit_escalation", arguments)
         mock_openai_class.return_value = mock_client
         result = evaluate_escalation(
             finding={"rule_triggered": "R001", "evidence_summary": "Survival clause."},

@@ -2,7 +2,7 @@
 Central config: env vars for OpenAI, Neo4j, etc.
 Use .env file or export in shell. Neo4j vars are required (no silent fallback).
 """
-from pydantic import model_validator
+from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -20,9 +20,12 @@ class Settings(BaseSettings):
     # 单次调用时发给 API 的合同文本最大字符数；snippet-only clause text 下用全文可跑完并得到约 40 clauses
     openai_max_input_chars: int = 120000
 
-    # Neo4j (required: set NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD in .env or environment)
+    # Neo4j (required: set NEO4J_URI, NEO4J_USER or NEO4J_USERNAME, NEO4J_PASSWORD in .env or environment)
     neo4j_uri: str = ""
-    neo4j_user: str = ""
+    neo4j_user: str = Field(
+        default="",
+        validation_alias=AliasChoices("NEO4J_USER", "NEO4J_USERNAME"),
+    )
     neo4j_password: str = ""
 
     # App

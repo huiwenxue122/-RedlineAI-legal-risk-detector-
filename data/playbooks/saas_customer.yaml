@@ -37,6 +37,8 @@ rules:
     keywords:
       - "liability shall not exceed"
       - "aggregate liability"
+      - "total liability"
+      - "liability cap"
       - "fees paid in the prior"
       - "twelve months"
       - "six months"

@@ -1,0 +1,75 @@
+{
+  "config": {
+    "n_contracts": 3,
+    "playbook": "data/playbooks/saas_customer.yaml"
+  },
+  "per_rule_metrics": {
+    "S001": {
+      "cuad_category": "Uncapped Liability",
+      "tp": 0,
+      "fp": 0,
+      "fn": 1,
+      "precision": null,
+      "recall": 0.0,
+      "f1": null
+    },
+    "S002": {
+      "cuad_category": "Cap On Liability",
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    "S007": {
+      "cuad_category": "Minimum Commitment",
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    "S008": {
+      "cuad_category": "Termination For Convenience",
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "precision": null,
+      "recall": null,
+      "f1": null
+    },
+    "S009": {
+      "cuad_category": "Renewal Term",
+      "tp": 0,
+      "fp": 0,
+      "fn": 1,
+      "precision": null,
+      "recall": 0.0,
+      "f1": null
+    },
+    "S010": {
+      "cuad_category": "Notice Period To Terminate Renewal",
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "precision": null,
+      "recall": null,
+      "f1": null
+    },
+    "S005": {
+      "cuad_category": "Revenue/Profit Sharing",
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "precision": null,
+      "recall": null,
+      "f1": null
+    }
+  },
+  "macro_avg": {
+    "precision": 1.0,
+    "recall": 1.0
+  }
+}
