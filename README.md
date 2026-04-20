@@ -1,33 +1,26 @@
-# ContractSentinel
+# RedlineAI
 
-**Agentic Legal Risk Review System for Contract Escalation**
+**AI Contract Risk Review for SaaS Companies**
 
-**Demo Presentation:** **[(https://youtu.be/N8oIo9SzWBE)](https://youtu.be/N8oIo9SzWBE)]**
+**Demo Presentation:** **[(https://youtu.be/N8oIo9SzWBE)](https://youtu.be/N8oIo9SzWBE)**
 
-**Project Presentation:** **[https://drive.google.com/file/d/1iCuXRGiC6RnLPyQMvN24fN3yDGiyxVn7/view?usp=sharing](https://drive.google.com/file/d/1iCuXRGiC6RnLPyQMvN24fN3yDGiyxVn7/view?usp=sharing)**
+**Project Presentation:** **[Google Drive](https://drive.google.com/file/d/1iCuXRGiC6RnLPyQMvN24fN3yDGiyxVn7/view?usp=sharing)**
 
-**Live demo:** **[https://contract-sentinel.vercel.app/](https://contract-sentinel.vercel.app/)** — open the link to run the full flow (sample contract → review → risk memo) in the browser.
+**Live demo:** **[https://contract-sentinel.vercel.app/](https://contract-sentinel.vercel.app/)** — upload a contract or use the sample to run the full review in the browser.
 
-⚠️ Note on First Run
-
-The backend is hosted on the Render free tier, which may spin down after inactivity.
-
-If the system has been idle, the first request may take 30–60 seconds while the server wakes up.
-In some cases, the first attempt may fail with a network error.
-
-If that happens: 
-
-Wait a few seconds; Refresh the page; Run the demo again
-
-The system should work normally after the backend service becomes active.
+> ⚠️ The backend is hosted on Render free tier and may cold-start after inactivity. If the first request fails, wait a few seconds and try again.
 
 ---
 
-ContractSentinel is a LegalTech AI system that models contract review as a policy-driven reasoning workflow rather than a simple chatbot or summarization tool.
+## What it does
 
-The system parses contracts into a graph-aware legal structure, runs a multi-agent reasoning pipeline, and produces a structured risk memo with evidence chains to support human legal review.
+RedlineAI helps small SaaS companies (5–50 people, no in-house legal) review customer contracts before signing.
 
-The goal is not to replace lawyers, but to help them identify risk, justify findings, and decide when escalation is required.
+**The problem:** founders, sales leads, and ops teams sign MSAs and order forms every week. They have no dedicated legal counsel, but signing the wrong clause — an uncapped liability exposure, a one-sided indemnity, a 90-day payment term — creates real financial and operational risk.
+
+**RedlineAI flags the clauses that can hurt you**, explains the risk in plain English, and suggests what to say to the customer's legal team.
+
+The system models contract review as a **policy-driven reasoning workflow** — not summarization, not Q&A. It parses contracts into a graph-aware legal structure, runs a three-agent reasoning pipeline, and produces a structured risk memo with evidence chains.
 
 ---
 
@@ -35,7 +28,7 @@ The goal is not to replace lawyers, but to help them identify risk, justify find
 
 ![System Architecture](pics/mermaid-diagram.png)
 
-ContractSentinel is built around three layers:
+RedlineAI is built around three layers:
 
 - **Structural Layer** – converts contracts into a structured legal graph
 - **Reasoning Layer** – performs policy-driven multi-agent review
@@ -43,112 +36,79 @@ ContractSentinel is built around three layers:
 
 ---
 
-## Overview
+## Why not just use a chatbot?
 
-Most AI contract tools focus on:
+Most AI contract tools focus on summarization, clause extraction, or ad hoc Q&A. Real contract review is harder:
 
-- summarization
-- clause extraction
-- legal Q&A
+**1. Contracts are not linear**
+Risk often depends on earlier definitions, referenced clauses, and exceptions elsewhere in the agreement. A termination clause might say "subject to Section 4.1" — you need to read Section 4.1 to know if the risk is real.
 
-However, real contract review involves three harder problems:
+**2. Risk is policy-dependent**
+A clause is risky only relative to your company's acceptable terms. RedlineAI uses a **Review Playbook** — a structured set of rules tuned for SaaS vendor contracts:
 
-### 1. Contracts are not linear
+| Category | What we flag |
+|----------|-------------|
+| **Liability** | Uncapped liability, asymmetric liability cap |
+| **Indemnity** | One-sided indemnity, overbroad indemnity scope |
+| **Payment Terms** | Net 60 / Net 90, weak late-payment recourse |
+| **Termination** | Lock-in / minimum commitment, no vendor exit right |
+| **Auto-renewal** | Hidden renewal, notice period ≥ 90 days |
 
-Risk often depends on:
-
-- earlier definitions
-- referenced clauses
-- exceptions elsewhere in the agreement
-
-**Example:** Section 8.2 – Termination *subject to* Section 4.1 – Limitation of Liability. Understanding this relationship requires cross-clause reasoning.
-
-### 2. Risk is policy-dependent
-
-A clause is risky only relative to:
-
-- market standards
-- company legal policy
-- client preferences
-
-ContractSentinel therefore evaluates contracts using a **Review Playbook**. Example rules:
-
-- unlimited liability → High risk
-- unilateral termination → High risk
-- confidentiality > 5 years → Medium risk
-
-### 3. Review is an escalation workflow
-
-In real legal workflows:
-
-- some issues are acceptable
-- some require revision
-- some require human legal review
-
-ContractSentinel models this escalation process explicitly.
+**3. Review is an escalation workflow**
+Not every issue has the same response. Some clauses are fine to sign. Some need a push-back email. Some need a lawyer. RedlineAI models this explicitly.
 
 ---
 
 ## Multi-Agent Reasoning Workflow
 
-The reasoning layer uses LangGraph orchestration with three agents.
+The reasoning layer uses **LangGraph** to orchestrate three agents in a proper directed graph:
+
+```
+START → scanner → critic → evaluator → (more findings?) → critic
+                ↑                    → (next clause?) → scanner
+                └────────────────────────────────────────────────┘
+```
 
 ### Scanner Agent
 
-Identifies candidate issues using the review playbook.
+Identifies candidate risks using the playbook rules.
 
-- **Example detections:** unlimited liability, broad data usage rights, unilateral termination, excessive confidentiality terms
-- **Output:** flagged clause, triggered rule, supporting evidence
+- **Keyword pre-filter:** runs before any LLM call — if no playbook keyword matches the clause text, the clause is skipped with no API call. In practice this filters ~70–80% of clauses before they reach the LLM.
+- **Output:** flagged clause, triggered rule id, evidence summary
+- **Uses:** `report_findings` tool (OpenAI function calling — schema-enforced output)
 
 ### Critic Agent
 
-Evaluates whether the Scanner's claim is justified. It checks:
+Validates whether the Scanner's finding is actually supported.
 
-- linked clauses
-- definitions
-- cross-references
-- contextual legal language
-
-This step reduces shallow or unsupported findings.
+- **Dynamic cross-reference lookup:** when a clause says "subject to Section 4.2", the Critic calls `get_clause("Section 4.2")` to fetch and read that section from Neo4j before deciding. It does not assume what cross-referenced clauses say.
+- **Output:** justified (true/false), reason, confidence
+- **Uses:** `get_clause` tool (Neo4j query) + `submit_verdict` tool (structured output)
 
 ### Evaluator Agent
 
-Produces the final decision:
+Produces the final decision for non-lawyers.
 
-- **Acceptable**
-- **Suggest Revision**
-- **Escalate for Human Review**
-
-**Decision factors:** policy severity, clause ambiguity, cross-clause dependency, evidence confidence.
+- **Escalation:** Acceptable / Suggest Revision / Escalate for Human Review
+- **Reason:** plain English — what the risk is and why it matters in practice
+- **Fallback language:** a short clause revision or email line the vendor can send to the customer's legal team
+- **Uses:** `submit_escalation` tool (enum-constrained output)
 
 ---
 
 ## Example Output
 
-The system generates a **Structured Risk Memo**. Example:
-
 ```json
 {
-  "clause": "The receiving party shall be liable for all damages without limitation.",
+  "clause": "Vendor's aggregate liability shall not exceed fees paid in the prior one (1) month.",
   "risk_level": "High",
-  "rule_triggered": "Unlimited Liability",
-  "reason": "Liability is not capped and may expose the party to unlimited damages.",
-  "fallback_language": "Liability shall not exceed the total fees paid under this agreement.",
+  "rule_triggered": "S002",
+  "reason": "The liability cap is set at one month of fees — if something goes wrong, the customer could claim losses far exceeding what you'd owe them, leaving you exposed. This is well below market standard (typically 12 months of fees).",
+  "fallback_language": "Can we align the liability cap to 12 months of fees paid rather than one month? Happy to discuss.",
   "escalation": "Suggest Revision",
-  "citation": {
-    "section": "Section 7.3",
-    "page": 12
-  }
+  "citation": { "section": "Section 9.1", "page": null }
 }
 ```
-
-In the UI, each issue is presented as an evidence-based review card containing:
-
-- clause text
-- policy rule triggered
-- reasoning
-- fallback language
-- escalation recommendation
 
 ---
 
@@ -156,21 +116,21 @@ In the UI, each issue is presented as an evidence-based review card containing:
 
 | Area | Technologies |
 |------|--------------|
-| **Document Parsing** | PyMuPDF (PDF parsing), layout-aware text extraction |
-| **Knowledge Graph** | Neo4j, LLM entity extraction, clause / definition / reference relationships |
-| **Reasoning** | LangGraph orchestration, LLM agents (Scanner / Critic / Evaluator), RAG + graph context retrieval |
+| **Document Parsing** | PyMuPDF, layout-aware text extraction, multi-pattern clause segmenter (7 heading formats auto-detected) |
+| **Knowledge Graph** | Neo4j (Aura), LLM entity extraction, clause / definition / cross-reference relationships |
+| **Reasoning** | LangGraph (3-node directed graph), OpenAI function calling (tool use), RAG + graph context retrieval |
 | **Backend** | FastAPI, Python |
 | **Frontend** | Next.js 14 (App Router), React, TypeScript, Tailwind |
-| **Evaluation** | Benchmark / metrics / baselines (Phase 6, optional for MVP) |
 
 ---
 
-## Getting started
+## Getting Started
 
 ### 1. Clone and install
 
 ```bash
-cd ContractSentinel
+git clone https://github.com/huiwenxue122/-RedlineAI-legal-risk-detector-.git
+cd -RedlineAI-legal-risk-detector-
 python -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
@@ -180,10 +140,10 @@ pip install -r requirements.txt
 
 Copy `.env.example` to `.env` and set:
 
-- **NEO4J_URI**, **NEO4J_USER**, **NEO4J_PASSWORD** — required for graph ingest and review (Neo4j). The app will not start if any of these are missing; no silent fallback to localhost.
-- **OPENAI_API_KEY** — required for extraction and review (LLM).
+- **NEO4J_URI**, **NEO4J_USER**, **NEO4J_PASSWORD** — required for graph ingest and review. The app will not start if any of these are missing.
+- **OPENAI_API_KEY** — required for extraction and review.
 
-See `app/config.py` for all options. For the frontend, optional: `NEXT_PUBLIC_API_URL` (defaults to `http://localhost:8000`); see `frontend/.env.example`.
+For the frontend: `NEXT_PUBLIC_API_URL` (defaults to `http://localhost:8000`). See `frontend/.env.example`.
 
 ### 3. Run backend
 
@@ -191,7 +151,7 @@ See `app/config.py` for all options. For the frontend, optional: `NEXT_PUBLIC_AP
 uvicorn app.main:app --reload
 ```
 
-API: http://127.0.0.1:8000. Docs: http://127.0.0.1:8000/docs.
+API: http://127.0.0.1:8000 · Docs: http://127.0.0.1:8000/docs
 
 ### 4. Run frontend
 
@@ -199,97 +159,79 @@ API: http://127.0.0.1:8000. Docs: http://127.0.0.1:8000/docs.
 cd frontend && npm install && npm run dev
 ```
 
-UI: http://localhost:3000. Use “Use sample contract” then “Start review” for the full demo.
+UI: http://localhost:3000
 
 ### 5. Run tests
 
-- **Unit tests** (no Neo4j/OpenAI needed for most; some use mocks):  
-  `python -m pytest tests/unit -v`
-- **Integration test** (requires Neo4j + OPENAI_API_KEY; ~3 min):  
-  `python -m pytest tests/integration -v`  
-  If env is not set, the integration test is skipped.
+```bash
+# Unit tests (no Neo4j / OpenAI required for most)
+python -m pytest tests/unit -v
 
-More commands: **[docs/commands.md](docs/commands.md)**. Module roles and data flow: **[docs/architecture.md](docs/architecture.md)**.
+# Integration test (requires Neo4j + OPENAI_API_KEY, ~3 min)
+python -m pytest tests/integration -v
+```
 
 ---
 
 ## Deployment
 
-The project is deployed so anyone can use it in the browser:
+- **Frontend:** Vercel — set `NEXT_PUBLIC_API_URL` at build time
+- **Backend:** Render (Web Service) — set all four env vars in the Render dashboard
+- **Graph:** Neo4j Aura (free tier works for demo)
 
-- **Frontend:** [contract-sentinel.vercel.app](https://contract-sentinel.vercel.app) (Vercel)
-- **Backend API:** Render (Web Service); Neo4j on Aura
-
-Config is fully environment-driven: no hardcoded credentials. Backend requires `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD`, `OPENAI_API_KEY`; frontend needs `NEXT_PUBLIC_API_URL` pointing at the backend (set at build time on Vercel). Step-by-step: **[docs/deploy-frontend.md](docs/deploy-frontend.md)**.
-
----
-
-## Evaluation
-
-To validate system behavior, the project includes a small contract review benchmark.
-
-- **Dataset:** NDA contracts, MSA contracts. Annotated with: risky clauses, escalation labels, expected citations.
-- **Metrics:** risk clause recall, precision on flagged clauses, cross-reference reasoning success, citation accuracy, escalation accuracy, hallucination rate.
-- **Baseline comparison:**
-
-| Method | Description |
-|--------|-------------|
-| Chunk RAG | traditional chunk retrieval |
-| Graph RAG | retrieval with graph context |
-| Multi-Agent | scanner + critic + evaluator |
+Step-by-step: [docs/deploy-frontend.md](docs/deploy-frontend.md)
 
 ---
 
-## Progress / Milestones
+## Evaluation Design
 
-Development is tracked in phases; each phase is documented with **what was done**, **main problems encountered**, and **how they were solved**.
+RedlineAI is evaluated across three levels:
 
-| Phase | Status | Summary |
-|-------|--------|---------|
-| **Phase 0** | Done | Project skeleton, config, schemas (Contract, Clause, Playbook, RiskMemo). |
-| **Phase 1** | Done | PDF parsing (PyMuPDF), rule-based clause segmentation, LLM extraction, cross-references, Neo4j ingest & query. End-to-end: PDF → graph. |
-| **Phase 2** | Done | Playbook loading, graph-augmented retrieval (clause text + graph context per clause). |
-| **Phase 3** | Done | Scanner, Critic, Evaluator; full-contract scan; LangGraph orchestration; StructuredRiskMemo. |
-| **Phase 4** | Done | API: health, contracts (upload/demo), review; CORS and exception handling. |
-| **Phase 5** | Done | Next.js frontend: two-column layout, RiskCard + EvidenceChain, i18n, full upload→review flow. |
-| **Phase 6** | Skipped | Evaluation / benchmark / baselines (optional for MVP). |
-| **Phase 7** | Done | Unit tests; integration test (PDF→review→StructuredRiskMemo). |
-| **Phase 8** | Done | Neo4j config env-only (no silent fallback); backend on Render; frontend on Vercel; live demo. |
+**Component-level**
+- Scanner: Precision and Recall on labeled clauses (legal recall prioritized — a missed liability clause costs more than a false positive)
+- Critic: false-positive filter rate; verdict accuracy with vs. without `get_clause` tool
+- Evaluator: escalation agreement with human expert labels; fallback language quality (LLM-as-judge)
 
-**Notable issues resolved:**
+**End-to-end**
+- Small benchmark built from [CUAD](https://www.atticusprojectai.org/cuad/) (510 expert-annotated commercial contracts, CC BY 4.0) and SEC EDGAR SaaS agreements
+- Metrics: risk clause recall, escalation accuracy, cross-reference reasoning success, hallucination rate
 
-- **Scanner always returning 0 findings** — Root cause was sometimes empty `clause_text` (clause not in graph or no text stored). We added a diagnostic (synthetic “must-hit” clause) to confirm the Scanner works, and debug output to inspect inputs. We now distinguish “no data” (empty text) vs “rule not matched” (text present but no playbook match).
-- **Shell error when passing contract ID** — Contract IDs with parentheses (e.g. `EX-10.4(a)`) must be quoted in zsh to avoid `number expected`.
-- **Findings written back to graph** — Full-contract scan now creates `Rule` nodes and `Clause -[:TRIGGERS {evidence}]-> Rule` edges so the Critic can read them directly.
-- **Deployment** — Neo4j credentials must be set in Render; frontend needs `NEXT_PUBLIC_API_URL` on Vercel and a redeploy after changing it. Render free tier may cold-start; first request can take ~1 min.
+**Ablation study**
 
-Full detail: **[docs/PROGRESS.md](docs/PROGRESS.md)**. Commands: **[docs/commands.md](docs/commands.md)**. Deploy guide: **[docs/deploy-frontend.md](docs/deploy-frontend.md)**.
+| Configuration | What it measures |
+|---------------|-----------------|
+| Keyword-only baseline | Value of LLM over rule matching |
+| + Scanner LLM | LLM detection quality |
+| + Critic (no tool) | Value of validation layer |
+| + get_clause tool | Value of dynamic cross-reference lookup |
+| Full pipeline | End-to-end system quality |
 
 ---
 
 ## Repository Structure
 
 ```
-contractsentinel/
+RedlineAI/
 │
 ├── app/
-│   ├── api/
-│   ├── agents/
-│   ├── parsing/
-│   ├── extraction/
-│   ├── graph/
-│   ├── retrieval/
-│   ├── evaluation/
-│   └── schemas/
+│   ├── api/              # FastAPI routes (health, contracts, review)
+│   ├── agents/           # Scanner, Critic, Evaluator + LangGraph orchestration
+│   ├── parsing/          # PDF parsing (PyMuPDF)
+│   ├── extraction/       # Clause segmenter, LLM entity extraction, cross-refs
+│   ├── graph/            # Neo4j client, ingest, query
+│   ├── retrieval/        # RAG + graph context retrieval
+│   └── schemas/          # Contract, Clause, Playbook, RiskMemo
 │
-├── frontend/
+├── frontend/             # Next.js 14 review UI
 │
 ├── data/
+│   ├── playbooks/        # saas_customer.yaml (active), default.yaml (general)
 │   ├── sample_contracts/
-│   ├── playbooks/
 │   └── benchmark/
 │
-├── notebooks/
 ├── tests/
-└── README.md
+│   ├── unit/
+│   └── integration/
+│
+└── docs/
 ```
