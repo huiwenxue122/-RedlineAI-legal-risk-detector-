@@ -5,42 +5,98 @@ Unit tests for app.extraction: segment_clauses, extract_cross_references.
 import pytest
 
 from app.extraction import segment_clauses, extract_cross_references
-from app.extraction.clause_segmenter import is_plausible_subsection_start
 from app.schemas.contract import Clause
 
 
 def test_segment_clauses_empty_returns_empty():
     clauses, stats = segment_clauses("")
     assert clauses == []
-    assert stats["raw_matches"] == 0
+    assert stats["pattern"] is None
     assert stats["after_dedup_filter"] == 0
 
 
-def test_segment_clauses_no_section_headers_returns_empty():
-    text = "This is plain text with no Section 1.1 style headers at all."
+def test_segment_clauses_plain_text_returns_empty():
+    # No recognizable heading structure; all patterns should yield 0 plausible clauses.
+    text = "This is plain text with no structured headings at all. " * 5
     clauses, stats = segment_clauses(text)
     assert clauses == []
-    assert stats["raw_matches"] == 0
+    assert stats["after_dedup_filter"] == 0
 
 
-def test_segment_clauses_with_headers(sample_full_text_for_segment):
+def test_segment_clauses_subsection_style(sample_full_text_for_segment):
+    """Section X.Y format — the current sample contract style."""
     clauses, stats = segment_clauses(sample_full_text_for_segment)
-    assert stats["raw_matches"] >= 2
+    assert stats["pattern"] == "subsection"
     assert len(clauses) >= 1
     for c in clauses:
         assert isinstance(c, Clause)
         assert c.id
-        assert isinstance(c.text, str)
         assert len(c.text) >= 100  # MIN_CLAUSE_CHARS
 
 
-def test_is_plausible_subsection_start_too_short():
-    assert is_plausible_subsection_start("Section 1.1  Short.", 0, 20, None) is False
+def test_segment_clauses_article_numbered_style():
+    """Article N format used in many MSA / software contracts."""
+    body = "The parties agree to the following terms and conditions as set forth herein. " * 3
+    text = (
+        f"Article 1  Definitions\n\n{body}\n\n"
+        f"Article 2  Obligations\n\n{body}\n\n"
+        f"Article 3  Termination\n\n{body}"
+    )
+    clauses, stats = segment_clauses(text)
+    assert stats["pattern"] == "article_numbered"
+    assert len(clauses) == 3
+    assert clauses[0].section_id == "Article 1"
+    assert clauses[1].section_id == "Article 2"
 
 
-def test_is_plausible_subsection_start_first_line_too_short():
-    body = "x" * 120
-    assert is_plausible_subsection_start("1.1  ab\n" + body, 0, 130, None) is False
+def test_segment_clauses_article_roman_style():
+    """Article I / II / III format used in some NDA / employment contracts."""
+    body = "The parties agree to the following terms and conditions as set forth herein. " * 3
+    text = (
+        f"Article I  Definitions\n\n{body}\n\n"
+        f"Article II  Obligations\n\n{body}\n\n"
+        f"Article III  Termination\n\n{body}"
+    )
+    clauses, stats = segment_clauses(text)
+    assert stats["pattern"] == "article_roman"
+    assert len(clauses) == 3
+    assert clauses[0].section_id == "Article I"
+    assert clauses[2].section_id == "Article III"
+
+
+def test_segment_clauses_section_number_style():
+    """Section N format (no subsection dot) used in some agreements."""
+    body = "The parties agree to the following terms and conditions as set forth herein. " * 3
+    text = (
+        f"Section 1  Definitions\n\n{body}\n\n"
+        f"Section 2  Representations\n\n{body}\n\n"
+        f"Section 3  Termination\n\n{body}"
+    )
+    clauses, stats = segment_clauses(text)
+    assert stats["pattern"] == "section_number"
+    assert len(clauses) == 3
+    assert clauses[0].section_id == "Section 1"
+
+
+def test_segment_clauses_paragraph_symbol_style():
+    """§ N.N format used in some regulatory / financial contracts."""
+    body = "The parties agree to the following terms and conditions as set forth herein. " * 3
+    text = (
+        f"§ 1.1 Definitions\n\n{body}\n\n"
+        f"§ 1.2 Obligations\n\n{body}\n\n"
+        f"§ 2.1 Termination\n\n{body}"
+    )
+    clauses, stats = segment_clauses(text)
+    assert stats["pattern"] == "paragraph_symbol"
+    assert len(clauses) == 3
+
+
+def test_segment_clauses_stats_has_all_patterns():
+    """stats["candidates_by_pattern"] should list all known patterns."""
+    from app.extraction.clause_segmenter import HEADING_PATTERNS
+    _, stats = segment_clauses("some text")
+    for p in HEADING_PATTERNS:
+        assert p.name in stats["candidates_by_pattern"]
 
 
 def test_extract_cross_references_empty():

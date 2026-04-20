@@ -1,110 +1,170 @@
 """
-Rule-based clause segmenter: split contract full text into subsection-level Clause list.
-No LLM; stable numbering (e.g. 1.1, 1.2, 2.1). Dedup by subsection number; filter TOC/weak hits.
+Rule-based clause segmenter: split contract full text into clause-level segments.
+
+Supports multiple common heading styles and auto-detects the best fit:
+  - Numbered subsection:   "1.1 ...", "Section 1.1 ..."
+  - Article numbered:      "Article 1 ..."
+  - Article roman:         "Article I ...", "Article III ..."
+  - Section numbered:      "Section 1 ..."
+  - Section roman:         "Section I ..."
+  - § symbol:              "§ 1.1 ...", "§ 2 ..."
+  - Simple numbered:       "1. TITLE ..." (requires uppercase word cue)
+
+Auto-detection: each pattern is tried; the one producing the most plausible clauses wins.
+If no pattern finds clauses, returns empty list (caller falls back to LLM extraction).
 """
 import re
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.schemas.contract import Clause
 
-
-# Match subsection header at line start: optional "Section ", then digits.digits, then whitespace.
-_SUBSECTION_HEADER = re.compile(
-    r"(?m)^\s*(?:Section\s+)?(\d+\.\d+)\s+",
-)
-
-# Minimum clause body length (chars) to count as real subsection, not TOC or ref line
+# Minimum clause body length (chars) to count as real clause, not TOC or ref line
 MIN_CLAUSE_CHARS = 100
 # First line (to newline) longer than this suggests real body; shorter may be TOC line
 MIN_FIRST_LINE_CHARS = 40
-# Only consider subsection starts in the first fraction of doc (main body; exhibits often reuse 1.1, 2.1 later)
-MAIN_BODY_FRACTION = 0.55
+# Only consider clause starts in the first fraction of doc (exhibits often reuse numbers)
+MAIN_BODY_FRACTION = 0.75
+
+
+@dataclass
+class HeadingPattern:
+    name: str
+    regex: re.Pattern
+
+
+# Ordered from most specific to least — auto-detection picks winner by clause count,
+# but specificity order breaks ties naturally (more specific patterns come first).
+HEADING_PATTERNS: List[HeadingPattern] = [
+    HeadingPattern(
+        name="subsection",
+        regex=re.compile(r"(?m)^\s*(?:Section\s+)?(\d+\.\d+(?:\.\d+)?)\s+"),
+    ),
+    HeadingPattern(
+        name="article_numbered",
+        regex=re.compile(r"(?m)^\s*Article\s+(\d+)\b\s*[.\-:]?\s*"),
+    ),
+    HeadingPattern(
+        name="article_roman",
+        # Matches "Article I", "Article XIV" etc.; [IVXLCDM]+ is safe here because
+        # "Article " prefix already constrains the context.
+        regex=re.compile(r"(?m)^\s*Article\s+([IVXLCDM]+)\b\s*[.\-:]?\s*"),
+    ),
+    HeadingPattern(
+        name="section_number",
+        regex=re.compile(r"(?m)^\s*Section\s+(\d+)\b\s*[.\-:]?\s*"),
+    ),
+    HeadingPattern(
+        name="section_roman",
+        regex=re.compile(r"(?m)^\s*Section\s+([IVXLCDM]+)\b\s*[.\-:]?\s*"),
+    ),
+    HeadingPattern(
+        name="paragraph_symbol",
+        regex=re.compile(r"(?m)^\s*§\s*(\d+(?:\.\d+)?)\s+"),
+    ),
+    HeadingPattern(
+        name="simple_numbered",
+        # Require two uppercase letters after "N. " to avoid matching plain lists.
+        regex=re.compile(r"(?m)^\s*(\d+)\.\s+[A-Z]{2}"),
+    ),
+]
 
 
 def _first_line(s: str) -> str:
-    """First line of text, stripped."""
     idx = s.find("\n")
     return (s[:idx] if idx >= 0 else s).strip()
 
 
-def is_plausible_subsection_start(
-    text: str,
-    start: int,
-    end: int,
-    prev_start: Optional[int],
-) -> bool:
-    """
-    Heuristic: reject TOC lines, ref-only lines, and too-short fragments.
-    - Clause text must be at least MIN_CLAUSE_CHARS.
-    - First line not too short (avoids "1.1  Title" / "1.1 ........ 5" TOC lines).
-    - Optional: if distance from prev match is tiny and text short, skip (dense TOC block).
-    """
+def _is_plausible(text: str, start: int, prev_start: Optional[int]) -> bool:
     if not text or len(text) < MIN_CLAUSE_CHARS:
         return False
+    # Short first line is suspicious (e.g. TOC entry "1.1 Title .... 5") unless the
+    # total body is substantial — Article/Section headings are often short titles on
+    # their own line, with the real body following on subsequent lines.
     first = _first_line(text)
-    if len(first) < MIN_FIRST_LINE_CHARS:
+    if len(first) < MIN_FIRST_LINE_CHARS and len(text) < MIN_CLAUSE_CHARS * 2:
         return False
-    # Dense TOC: very close to previous match and still short
+    # Dense cluster (likely TOC block): very close to previous match and still short
     if prev_start is not None and (start - prev_start) < 100 and len(text) < 200:
         return False
     return True
 
 
-def segment_clauses(full_text: str) -> Tuple[List[Clause], Dict[str, Any]]:
-    """
-    Split full contract text into subsection-level clauses. Dedup by subsection number
-    (keep one candidate per number, preferring longer text). Filter implausible/TOC hits.
-    Returns (clauses, stats) with stats["raw_matches"] and stats["after_dedup_filter"].
-    """
-    stats: Dict[str, Any] = {"raw_matches": 0, "after_dedup_filter": 0}
+def _make_ids(pattern_name: str, num: str) -> Tuple[str, str]:
+    """Return (clause_id, section_id) for a given pattern and captured number."""
+    num_safe = num.replace(".", "_")
+    if "article" in pattern_name:
+        return f"article_{num_safe}", f"Article {num}"
+    elif "paragraph" in pattern_name:
+        return f"section_{num_safe}", f"§ {num}"
+    else:
+        return f"section_{num_safe}", f"Section {num}"
 
-    if not (full_text or "").strip():
-        return [], stats
 
-    matches = list(_SUBSECTION_HEADER.finditer(full_text))
-    stats["raw_matches"] = len(matches)
+def _run_pattern(full_text: str, pattern: HeadingPattern) -> List[Clause]:
+    """Apply one heading pattern and return plausible, deduped clauses."""
+    matches = list(pattern.regex.finditer(full_text))
     if not matches:
-        return [], stats
+        return []
 
     positions = [m.start() for m in matches]
     numbers = [m.group(1) for m in matches]
-
-    # Build candidates: (num, start, end, text); skip starts beyond main body (exhibits reuse numbers)
     main_body_end = int(len(full_text) * MAIN_BODY_FRACTION)
-    candidates: List[Tuple[str, int, int, str]] = []
+
+    candidates: List[Tuple[str, int, str]] = []  # (num, start, text)
     prev_start: Optional[int] = None
-    for i in range(len(positions)):
-        start = positions[i]
+    for i, (start, num) in enumerate(zip(positions, numbers)):
         if start > main_body_end:
             continue
         end = positions[i + 1] if i + 1 < len(positions) else len(full_text)
         text = full_text[start:end].strip()
-        num = numbers[i]
-        if not is_plausible_subsection_start(text, start, end, prev_start):
+        if not _is_plausible(text, start, prev_start):
             continue
-        candidates.append((num, start, end, text))
+        candidates.append((num, start, text))
         prev_start = start
 
-    # One clause per subsection number: keep candidate with longest text
-    by_num: Dict[str, Tuple[int, int, int, str]] = {}
-    for (num, start, end, text) in candidates:
-        if num not in by_num or len(text) > len(by_num[num][3]):
-            by_num[num] = (start, end, end - start, text)
+    # Dedup by number: keep the candidate with the longest text
+    by_num: Dict[str, Tuple[int, str]] = {}
+    for num, start, text in candidates:
+        if num not in by_num or len(text) > len(by_num[num][1]):
+            by_num[num] = (start, text)
 
-    # Sort by start to preserve document order; build Clause list
+    # Sort by position to preserve document order
     chosen = sorted(by_num.items(), key=lambda x: x[1][0])
-    clauses: List[Clause] = []
-    for num, (start, _end, _len, text) in chosen:
-        clause_id = "section_" + num.replace(".", "_")
-        section_id = "Section " + num
-        clauses.append(
-            Clause(
-                id=clause_id,
-                section_id=section_id,
-                text=text,
-                page=None,
-            )
-        )
+    clauses = []
+    for num, (_, text) in chosen:
+        clause_id, section_id = _make_ids(pattern.name, num)
+        clauses.append(Clause(id=clause_id, section_id=section_id, text=text, page=None))
 
-    stats["after_dedup_filter"] = len(clauses)
-    return clauses, stats
+    return clauses
+
+
+def segment_clauses(full_text: str) -> Tuple[List[Clause], Dict[str, Any]]:
+    """
+    Auto-detect heading style and split contract text into clause-level segments.
+    Tries each known heading pattern; picks the one producing the most plausible clauses.
+    Returns (clauses, stats). clauses is empty if no pattern matches (LLM fallback).
+    stats includes "pattern" (winner name) and "candidates_by_pattern" (count per pattern).
+    """
+    stats: Dict[str, Any] = {
+        "pattern": None,
+        "candidates_by_pattern": {},
+        "after_dedup_filter": 0,
+    }
+
+    if not (full_text or "").strip():
+        return [], stats
+
+    best_clauses: List[Clause] = []
+    best_pattern_name: Optional[str] = None
+
+    for pattern in HEADING_PATTERNS:
+        clauses = _run_pattern(full_text, pattern)
+        stats["candidates_by_pattern"][pattern.name] = len(clauses)
+        if len(clauses) > len(best_clauses):
+            best_clauses = clauses
+            best_pattern_name = pattern.name
+
+    stats["pattern"] = best_pattern_name
+    stats["after_dedup_filter"] = len(best_clauses)
+    return best_clauses, stats
