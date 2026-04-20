@@ -42,19 +42,9 @@ Supporting context (definitions, obligations, cross-references linked to this cl
 Risk rules to check:
 {rules_text}
 
-For each rule that is clearly triggered by this clause, output one finding with:
-  "clause_ref"      — the clause reference above
-  "rule_triggered"  — the rule id (e.g. S001)
-  "evidence_summary"— 1–2 sentences quoting or paraphrasing the specific language \
-that triggers the rule, and why it is a problem for the vendor.
-
-If no rules are triggered, return an empty findings list.
-
-Return JSON in this shape only:
-{{ "findings": [
-  {{ "clause_ref": "...", "rule_triggered": "S001", "evidence_summary": "..." }},
-  ...
-] }}\
+For each rule that is clearly triggered, include one finding with the clause reference, \
+the rule id, and a 1–2 sentence evidence summary quoting the specific risky language \
+and why it harms the vendor. If no rules are triggered, report an empty findings list.\
 """
 
 # ── Critic ────────────────────────────────────────────────────────────────────
@@ -97,10 +87,8 @@ Supporting context (definitions, obligations, cross-references for this clause):
 
 Is this finding justified? Consider whether definitions limit scope, whether a \
 cross-referenced clause adds protection, or whether the evidence actually supports \
-the claimed risk for the vendor.
-
-Return JSON only:
-{{ "justified": true or false, "reason": "...", "confidence": "high" or "medium" or "low" }}\
+the claimed risk for the vendor. Use get_clause() for any cross-references you need \
+to verify. When you have enough context, call submit_verdict with your decision.\
 """
 
 # ── Evaluator ─────────────────────────────────────────────────────────────────
@@ -144,11 +132,7 @@ Critic conclusion:
 Clause excerpt:
 {clause_excerpt}
 
-Decide escalation: "Acceptable" | "Suggest Revision" | "Escalate for Human Review"
-
-Write the reason in plain English for a non-lawyer. If Suggest Revision or Escalate, \
-provide fallback_language the vendor can use to push back or negotiate.
-
-Return JSON only:
-{{ "escalation": "...", "fallback_language": "..." or null, "reason": "..." }}\
+Decide the escalation and call submit_escalation with your decision. Write the reason \
+in plain English for a non-lawyer — explain the concrete risk. For Suggest Revision or \
+Escalate, provide fallback_language the vendor can use to push back or negotiate.\
 """
