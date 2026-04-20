@@ -146,17 +146,64 @@ python scripts/eval_cuad.py --n 25 --out data/benchmark/eval_results.json
 
 ## 8. 下一步改进方向
 
-1. **扩展 keyword 覆盖（短期）**：为 S008 补充 "may terminate"、"upon notice"、"written notice" 等宽泛关键词
-2. **改 keyword filter 为宽松模式（中期）**：对每个规则类别只保留一个宽泛触发词（如 S001/S002 统一用 "liability"），把精确判断留给 LLM
+1. **扩展 keyword 覆盖（短期）**：为 S008 补充 "may terminate"、"upon notice"、"written notice" 等宽泛关键词 ✅ 已在 v2 实施
+2. **改 keyword filter 为宽松模式（中期）**：对每个规则类别只保留一个宽泛触发词（如 S001/S002 统一用 "liability"），把精确判断留给 LLM ✅ 已在 v2 实施
 3. **领域对齐（长期）**：用 SEC EDGAR 上的真实 SaaS MSA 合同补充评估集，替代 CUAD 中非 SaaS 类型合同
 
 ---
 
-## 9. 脚本位置
+## 9. 实验二：宽松 Keyword Filter（v2）
+
+### 改动内容
+
+将每条规则的 keyword 从"精确短语"改为"宽泛触发词 + 精确短语"组合：
+
+| Rule | 新增宽泛 keyword |
+|------|----------------|
+| S001 | "liability", "liable", "damages", "limitation of liability" |
+| S002 | "liability", "liable", "cap on liability", "limit of liability" |
+| S007 | "term", "commit", "volume", "purchase obligation" |
+| S008 | "terminat", "may terminate", "written notice", "upon notice", "days notice" |
+| S009 | "renew", "renewal", "additional term", "successive period" |
+| S010 | "notice", "days prior", "days before", "written notice" |
+
+### 运行命令
+
+```bash
+python scripts/eval_cuad.py --n 25 --out data/benchmark/eval_results_v2.json
+```
+
+### 结果对比（25 份合同）
+
+| Rule | CUAD 类别 | v1 Recall | v2 Recall | v1 Precision | v2 Precision |
+|------|-----------|-----------|-----------|--------------|--------------|
+| S001 | Uncapped Liability | 0.333 | **0.667** | 0.125 | 0.222 |
+| S002 | Cap On Liability | 0.200 | 0.222 | 1.000 | 0.667 |
+| S005 | Revenue/Profit Sharing | 0.000 | 0.000 | — | — |
+| S007 | Minimum Commitment | 0.250 | **0.667** | 0.500 | 0.182 |
+| S008 | Termination For Convenience | 0.000 | **0.222** | — | 0.286 |
+| S009 | Renewal Term | 0.286 | **0.429** | 1.000 | 0.600 |
+| S010 | Notice Period | 0.250 | 0.000 | 1.000 | 0.000 |
+
+| 总体指标 | v1（原版） | v2（宽松 keyword） | 变化 |
+|---------|-----------|-------------------|------|
+| Macro Precision | 0.604 | 0.326 | -46% |
+| Macro Recall | 0.220 | **0.368** | **+67%** |
+
+### 分析
+
+- **Recall 提升 67%**，S001/S007 从 0.25-0.33 跳到 0.67，S008 从 0 到 0.22（从完全找不到到能找到）
+- **Precision 下降**：更多条款进入 LLM，FP 增多。对合同审查工具来说这是**正确 tradeoff**——宁可多报，不能漏报
+- **S010 regression**：宽泛的 "notice" 关键词让很多无关条款进入 LLM，LLM 误判增多；可考虑 S010 单独保持精确 keyword
+
+---
+
+## 10. 脚本位置
 
 | 文件 | 说明 |
 |------|------|
 | `scripts/eval_cuad.py` | 主评估脚本 |
-| `data/benchmark/eval_results.json` | 25 份合同完整结果（JSON） |
-| `data/benchmark/eval_test.json` | 3 份合同验证结果（JSON） |
-| `data/playbooks/saas_customer.yaml` | 评估使用的 playbook |
+| `data/benchmark/eval_results.json` | v1 结果（25 份合同） |
+| `data/benchmark/eval_results_v2.json` | v2 结果（宽松 keyword，25 份合同） |
+| `data/benchmark/eval_test.json` | 3 份合同验证结果 |
+| `data/playbooks/saas_customer.yaml` | 评估使用的 playbook（v2 版本） |

@@ -13,6 +13,8 @@ rules:
     description: Unlimited or uncapped vendor liability — customer contract imposes no monetary ceiling on what the vendor can owe.
     risk_level: High
     keywords:
+      - "liability"
+      - "liable"
       - "unlimited liability"
       - "uncapped liability"
       - "liable for any and all"
@@ -23,6 +25,8 @@ rules:
       - "consequential damages"
       - "loss of profits"
       - "loss of revenue"
+      - "damages"
+      - "limitation of liability"
     criteria: >
       Flag any clause that removes or effectively eliminates a monetary cap on the vendor's
       liability, including clauses that exclude the limitation-of-liability section for a
@@ -35,6 +39,8 @@ rules:
     description: Asymmetric liability cap — the vendor's liability ceiling is far lower than the customer's potential claim exposure or the contract value does not meaningfully limit risk.
     risk_level: High
     keywords:
+      - "liability"
+      - "liable"
       - "liability shall not exceed"
       - "aggregate liability"
       - "total liability"
@@ -44,6 +50,8 @@ rules:
       - "six months"
       - "direct damages only"
       - "sole and exclusive remedy"
+      - "cap on liability"
+      - "limit of liability"
     criteria: >
       Flag clauses where the liability cap formula is structured to favour the customer:
       for example, capping vendor liability at only one or three months of fees paid while
@@ -152,6 +160,11 @@ rules:
       - "minimum commitment"
       - "minimum purchase"
       - "committed volume"
+      - "term"
+      - "commit"
+      - "purchase obligation"
+      - "volume"
+      - "non-cancellable"
     criteria: >
       Flag clauses that lock the vendor into a long non-cancellable service commitment
       (typically more than 12 months) without a reciprocal early exit mechanism. This
@@ -163,15 +176,22 @@ rules:
     description: No early termination right for vendor — the vendor cannot exit the contract for convenience or for the customer's repeated breach without triggering liability.
     risk_level: High
     keywords:
+      - "terminat"
+      - "may terminate"
+      - "right to terminate"
+      - "terminate for convenience"
+      - "termination for cause"
       - "may not terminate"
       - "vendor may not terminate"
       - "no right to terminate"
-      - "terminate for convenience"
-      - "termination for cause only"
       - "cure period"
       - "30-day cure"
       - "60-day cure"
       - "repeated breach"
+      - "written notice"
+      - "upon notice"
+      - "days notice"
+      - "days' notice"
     criteria: >
       Flag clauses where the vendor's termination rights are asymmetric: the customer
       can terminate for convenience (or on short notice) while the vendor can only
@@ -186,6 +206,8 @@ rules:
     description: Hidden or automatic renewal — agreement renews automatically with little notice, locking both parties in for an additional full term.
     risk_level: Medium
     keywords:
+      - "renew"
+      - "renewal"
       - "automatically renew"
       - "auto-renew"
       - "auto renewal"
@@ -195,6 +217,8 @@ rules:
       - "deemed renewed"
       - "shall renew"
       - "will renew"
+      - "additional term"
+      - "successive period"
     criteria: >
       Flag clauses that automatically renew the agreement for a full additional term
       (e.g. another 12 months) unless one party gives timely notice of non-renewal.
@@ -207,6 +231,10 @@ rules:
     description: Excessively long cancellation notice period — the notice window required to prevent auto-renewal is unreasonably long (90+ days), creating operational risk of missed deadlines.
     risk_level: Medium
     keywords:
+      - "notice"
+      - "days prior"
+      - "days before"
+      - "written notice"
       - "90 days notice"
       - "120 days notice"
       - "180 days notice"
@@ -216,6 +244,8 @@ rules:
       - "prior to expiration"
       - "prior to renewal date"
       - "advance written notice"
+      - "days' written notice"
+      - "days written notice"
     criteria: >
       Flag clauses where the notice period required to opt out of auto-renewal is 90
       days or more before the renewal date. A 90-day or longer look-ahead window is
