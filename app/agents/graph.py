@@ -127,6 +127,7 @@ def critic_node(state: ReviewState) -> Dict[str, Any]:
         clause_text=(clause_ctx.get("clause_text") or "").strip(),
         graph_context=clause_ctx.get("graph_context") or "",
         rule_description=rule_description,
+        contract_id=state["contract_id"],
     )
     return {"current_finding": f, "critic_result": critic_result}
 
