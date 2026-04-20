@@ -1,0 +1,223 @@
+# SaaS Customer Contract Playbook
+# Perspective: you are a SaaS vendor reviewing a contract sent by an enterprise customer.
+# Goal: flag clauses that expose you (the vendor) to financial, operational, or legal risk
+#       before you sign.
+#
+# 5 risk categories: Liability | Indemnity | Payment Terms | Termination | Auto-renewal
+
+rules:
+
+  # ── LIABILITY ─────────────────────────────────────────────────────────────────
+
+  - rule_id: S001
+    description: Unlimited or uncapped vendor liability — customer contract imposes no monetary ceiling on what the vendor can owe.
+    risk_level: High
+    keywords:
+      - "unlimited liability"
+      - "uncapped liability"
+      - "liable for any and all"
+      - "all damages"
+      - "without limitation"
+      - "no limitation of liability"
+      - "full liability"
+      - "consequential damages"
+      - "loss of profits"
+      - "loss of revenue"
+    criteria: >
+      Flag any clause that removes or effectively eliminates a monetary cap on the vendor's
+      liability, including clauses that exclude the limitation-of-liability section for a
+      broad class of claims (e.g. data breach, IP infringement, fraud) without a defined
+      dollar ceiling. Also flag clauses that expose the vendor to consequential, indirect,
+      or lost-profit damages without carve-outs. The risk to the vendor is potentially
+      unlimited financial exposure from a single incident.
+
+  - rule_id: S002
+    description: Asymmetric liability cap — the vendor's liability ceiling is far lower than the customer's potential claim exposure or the contract value does not meaningfully limit risk.
+    risk_level: High
+    keywords:
+      - "liability shall not exceed"
+      - "aggregate liability"
+      - "fees paid in the prior"
+      - "twelve months"
+      - "six months"
+      - "direct damages only"
+      - "sole and exclusive remedy"
+    criteria: >
+      Flag clauses where the liability cap formula is structured to favour the customer:
+      for example, capping vendor liability at only one or three months of fees paid while
+      the customer's potential losses (data, revenue, SLA penalties) are much larger.
+      Also flag clauses where a carve-out list (IP, confidentiality, wilful misconduct)
+      is so broad that the cap is rarely operative. The test is whether the cap provides
+      meaningful protection to the vendor in a realistic loss scenario.
+
+  # ── INDEMNITY ─────────────────────────────────────────────────────────────────
+
+  - rule_id: S003
+    description: One-sided indemnity — vendor is required to indemnify the customer with no equivalent obligation running the other way.
+    risk_level: High
+    keywords:
+      - "indemnify"
+      - "hold harmless"
+      - "defend and indemnify"
+      - "defend, indemnify, and hold harmless"
+      - "at your expense"
+      - "vendor shall indemnify"
+      - "supplier shall indemnify"
+    criteria: >
+      Flag indemnity clauses that require the vendor to indemnify, defend, and hold
+      harmless the customer (and its affiliates, officers, employees) without a
+      reciprocal obligation from the customer. One-sided indemnity means the vendor
+      bears the full cost of defending and settling third-party claims even where the
+      customer's own conduct may be a contributing cause. Look for absence of mutual
+      indemnity or customer indemnity for misuse, breach, or customer-caused IP claims.
+
+  - rule_id: S004
+    description: Overbroad indemnity scope — indemnity obligation covers an unusually wide class of claims including third-party IP, data incidents, or regulatory violations without carve-outs.
+    risk_level: High
+    keywords:
+      - "any and all claims"
+      - "any third-party claim"
+      - "intellectual property infringement"
+      - "data breach"
+      - "regulatory violation"
+      - "fines and penalties"
+      - "all losses"
+      - "all costs"
+      - "including attorneys"
+    criteria: >
+      Flag indemnity clauses where the covered claim types are exceptionally broad:
+      IP infringement (including customer's own modifications), data incidents caused
+      by any party, regulatory fines (GDPR, HIPAA), or broadly worded "any claim
+      arising from the services." A well-scoped vendor indemnity should be limited to
+      claims directly caused by the vendor's product (not customer configuration or
+      third-party integrations). Flag especially where the trigger is "arising from" or
+      "related to" rather than "caused by."
+
+  # ── PAYMENT TERMS ─────────────────────────────────────────────────────────────
+
+  - rule_id: S005
+    description: Extended payment terms (Net 60 / Net 90) — customer is given 60 or more days to pay invoices, creating cash flow risk for the vendor.
+    risk_level: Medium
+    keywords:
+      - "net 60"
+      - "net 90"
+      - "net 120"
+      - "sixty (60) days"
+      - "ninety (90) days"
+      - "payment within 60"
+      - "payment within 90"
+      - "60 days from invoice"
+      - "90 days from invoice"
+    criteria: >
+      Flag any payment clause specifying a net payment period of 60 days or more from
+      invoice date. Net 60+ terms are materially longer than SaaS market standard
+      (typically Net 30) and compress vendor cash flow, particularly for annual or
+      quarterly invoices. Also flag clauses where the payment clock starts from customer
+      acceptance rather than invoice date, which may further extend actual payment timing.
+
+  - rule_id: S006
+    description: Weak late payment recourse — vendor has limited or no practical remedy when the customer pays late (no interest, no suspension right, narrow dispute window).
+    risk_level: Medium
+    keywords:
+      - "no interest"
+      - "no late fee"
+      - "no suspension"
+      - "may not suspend"
+      - "dispute within"
+      - "good faith dispute"
+      - "withhold payment"
+      - "set off"
+      - "offset"
+      - "non-refundable"
+    criteria: >
+      Flag clauses that remove or limit the vendor's ability to charge interest on late
+      payments, suspend services for non-payment, or collect disputed amounts. Also flag
+      broad customer setoff/offset rights that allow the customer to withhold any payment
+      by claiming an unresolved dispute, and narrow dispute windows that make it
+      procedurally easy for customers to delay payment indefinitely by raising disputes.
+
+  # ── TERMINATION ───────────────────────────────────────────────────────────────
+
+  - rule_id: S007
+    description: Customer lock-in or minimum commitment — vendor is committed to serve for a long fixed term with no exit right, even if the relationship becomes commercially unviable.
+    risk_level: Medium
+    keywords:
+      - "minimum term"
+      - "initial term"
+      - "non-cancellable"
+      - "irrevocable commitment"
+      - "take-or-pay"
+      - "minimum commitment"
+      - "minimum purchase"
+      - "committed volume"
+    criteria: >
+      Flag clauses that lock the vendor into a long non-cancellable service commitment
+      (typically more than 12 months) without a reciprocal early exit mechanism. This
+      includes take-or-pay arrangements, minimum volume commitments, and irrevocable
+      service terms that would require the vendor to continue delivering services even
+      if the customer relationship becomes unprofitable or operationally untenable.
+
+  - rule_id: S008
+    description: No early termination right for vendor — the vendor cannot exit the contract for convenience or for the customer's repeated breach without triggering liability.
+    risk_level: High
+    keywords:
+      - "may not terminate"
+      - "vendor may not terminate"
+      - "no right to terminate"
+      - "terminate for convenience"
+      - "termination for cause only"
+      - "cure period"
+      - "30-day cure"
+      - "60-day cure"
+      - "repeated breach"
+    criteria: >
+      Flag clauses where the vendor's termination rights are asymmetric: the customer
+      can terminate for convenience (or on short notice) while the vendor can only
+      terminate for material breach after a long cure period. Also flag where repeated
+      or habitual breach by the customer still does not allow vendor termination once
+      cured, making it impossible to exit a chronically problematic customer relationship
+      without facing breach-of-contract exposure.
+
+  # ── AUTO-RENEWAL ──────────────────────────────────────────────────────────────
+
+  - rule_id: S009
+    description: Hidden or automatic renewal — agreement renews automatically with little notice, locking both parties in for an additional full term.
+    risk_level: Medium
+    keywords:
+      - "automatically renew"
+      - "auto-renew"
+      - "auto renewal"
+      - "successive terms"
+      - "renewal term"
+      - "unless notice of non-renewal"
+      - "deemed renewed"
+      - "shall renew"
+      - "will renew"
+    criteria: >
+      Flag clauses that automatically renew the agreement for a full additional term
+      (e.g. another 12 months) unless one party gives timely notice of non-renewal.
+      The risk to the vendor is being automatically bound to another term on potentially
+      unfavourable economics, or — conversely — a customer being inadvertently renewed
+      who then disputes the additional term's enforceability. Flag especially where
+      renewal is for the same fixed term rather than converting to month-to-month.
+
+  - rule_id: S010
+    description: Excessively long cancellation notice period — the notice window required to prevent auto-renewal is unreasonably long (90+ days), creating operational risk of missed deadlines.
+    risk_level: Medium
+    keywords:
+      - "90 days notice"
+      - "120 days notice"
+      - "180 days notice"
+      - "ninety (90) days"
+      - "one hundred twenty"
+      - "six months notice"
+      - "prior to expiration"
+      - "prior to renewal date"
+      - "advance written notice"
+    criteria: >
+      Flag clauses where the notice period required to opt out of auto-renewal is 90
+      days or more before the renewal date. A 90-day or longer look-ahead window is
+      operationally difficult to track (especially at scale) and creates a high risk of
+      missing the cancellation deadline. Market standard for SaaS contracts is 30–60
+      days. Also flag clauses where the notice window is not explicitly defined,
+      leaving the required timing ambiguous.

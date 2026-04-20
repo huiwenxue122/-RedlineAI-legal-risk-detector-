@@ -22,7 +22,7 @@ class ReviewRequest(BaseModel):
     playbook_id: Optional[str] = Field(None, description="Playbook id, e.g. default")
 
 PLAYBOOKS_DIR = Path(__file__).resolve().parent.parent.parent.parent / "data" / "playbooks"
-DEFAULT_PLAYBOOK = "default.yaml"
+DEFAULT_PLAYBOOK = "saas_customer.yaml"
 
 
 def _playbook_path(playbook_id: str | None) -> str:
