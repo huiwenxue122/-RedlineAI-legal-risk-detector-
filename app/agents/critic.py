@@ -14,7 +14,6 @@ Without contract_id: falls back to a single-shot call (original behaviour).
 Output: { "justified": bool, "reason": str, "confidence": str }
 """
 import json
-import re
 from typing import Any, Dict, List, Optional
 
 from openai import OpenAI
@@ -27,6 +26,33 @@ MAX_GRAPH_CONTEXT_CHARS = 4000
 MAX_TOOL_ITERATIONS = 4  # cap tool rounds to prevent runaway loops
 
 # ── Tool definition ───────────────────────────────────────────────────────────
+
+SUBMIT_VERDICT_TOOL: Dict[str, Any] = {
+    "type": "function",
+    "function": {
+        "name": "submit_verdict",
+        "description": "Submit your final verdict on whether the Scanner finding is justified.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "justified": {
+                    "type": "boolean",
+                    "description": "True if the finding is genuinely supported by the clause text and context",
+                },
+                "reason": {
+                    "type": "string",
+                    "description": "1-3 plain sentences explaining the verdict (no legal jargon)",
+                },
+                "confidence": {
+                    "type": "string",
+                    "enum": ["high", "medium", "low"],
+                    "description": "Confidence in the verdict",
+                },
+            },
+            "required": ["justified", "reason", "confidence"],
+        },
+    },
+}
 
 GET_CLAUSE_TOOL: Dict[str, Any] = {
     "type": "function",
@@ -75,36 +101,6 @@ def _fetch_clause_text(contract_id: str, section_id: str) -> str:
     return f"(Section '{section_id}' not found in this contract.)"
 
 
-# ── JSON parsing ──────────────────────────────────────────────────────────────
-
-def _extract_json(content: str) -> dict:
-    text = content.strip()
-    m = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)
-    if m:
-        text = m.group(1).strip()
-    first = text.find("{")
-    if first >= 0:
-        depth = 0
-        for i in range(first, len(text)):
-            if text[i] == "{":
-                depth += 1
-            elif text[i] == "}":
-                depth -= 1
-                if depth == 0:
-                    text = text[first : i + 1]
-                    break
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        pass
-    try:
-        from json_repair import repair_json
-        return json.loads(repair_json(text))
-    except Exception:
-        pass
-    return {"justified": False, "reason": "Failed to parse critic response.", "confidence": "low"}
-
-
 # ── Main entry point ──────────────────────────────────────────────────────────
 
 def evaluate_finding(
@@ -151,46 +147,55 @@ def evaluate_finding(
     ]
 
     client = OpenAI(api_key=settings.openai_api_key, timeout=60.0)
-    use_tools = contract_id is not None
 
-    content = "{}"
+    # Tools available to the Critic:
+    #   get_clause     — fetch a cross-referenced clause on demand
+    #   submit_verdict — structured output; terminates the loop
+    tools = [GET_CLAUSE_TOOL, SUBMIT_VERDICT_TOOL]
+    if contract_id is None:
+        tools = [SUBMIT_VERDICT_TOOL]  # no graph access without contract_id
+
     for _ in range(MAX_TOOL_ITERATIONS):
-        kwargs: Dict[str, Any] = {
-            "model": settings.openai_model,
-            "messages": messages,
-            "temperature": 0.2,
-            "max_tokens": 1024,
-        }
-        if use_tools:
-            kwargs["tools"] = [GET_CLAUSE_TOOL]
-            kwargs["tool_choice"] = "auto"
-        else:
-            kwargs["response_format"] = {"type": "json_object"}
-
-        response = client.chat.completions.create(**kwargs)
+        response = client.chat.completions.create(
+            model=settings.openai_model,
+            messages=messages,
+            tools=tools,
+            tool_choice="required",  # always call a tool; loop ends on submit_verdict
+            temperature=0.2,
+            max_tokens=1024,
+        )
         msg = response.choices[0].message
+        messages.append(msg)
 
-        if msg.tool_calls:
-            messages.append(msg)
-            for tc in msg.tool_calls:
-                if tc.function.name == "get_clause":
-                    args = json.loads(tc.function.arguments)
-                    fetched = _fetch_clause_text(contract_id, args.get("section_id", ""))
-                    messages.append({
-                        "role": "tool",
-                        "tool_call_id": tc.id,
-                        "content": fetched,
-                    })
-        else:
-            content = msg.content or "{}"
+        verdict_data: Optional[Dict[str, Any]] = None
+        for tc in (msg.tool_calls or []):
+            if tc.function.name == "submit_verdict":
+                verdict_data = json.loads(tc.function.arguments)
+                # Still need to send a tool result back so the message thread is valid
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc.id,
+                    "content": "Verdict recorded.",
+                })
+            elif tc.function.name == "get_clause" and contract_id:
+                args = json.loads(tc.function.arguments)
+                fetched = _fetch_clause_text(contract_id, args.get("section_id", ""))
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc.id,
+                    "content": fetched,
+                })
+
+        if verdict_data is not None:
             break
+    else:
+        verdict_data = {}
 
-    data = _extract_json(content)
-    justified = data.get("justified")
+    justified = verdict_data.get("justified")
     if not isinstance(justified, bool):
         justified = str(justified).lower() in ("true", "1", "yes")
-    reason = str(data.get("reason") or "").strip() or "No reason given."
-    confidence = str(data.get("confidence") or "").strip().lower()
+    reason = str(verdict_data.get("reason") or "").strip() or "No reason given."
+    confidence = str(verdict_data.get("confidence") or "").strip().lower()
     if confidence not in ("high", "medium", "low"):
         confidence = "medium"
     return {"justified": justified, "reason": reason, "confidence": confidence}
