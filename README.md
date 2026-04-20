@@ -6,7 +6,7 @@
 
 **Project Presentation:** **[Google Drive](https://drive.google.com/file/d/1iCuXRGiC6RnLPyQMvN24fN3yDGiyxVn7/view?usp=sharing)**
 
-**Live demo:** **[https://contract-sentinel.vercel.app/](https://contract-sentinel.vercel.app/)** — upload a contract or use the sample to run the full review in the browser.
+**Live demo:** **[redline-ai-legal-risk-detector.vercel.app](redline-ai-legal-risk-detector.vercel.app)** — upload a contract or use the sample to run the full review in the browser.
 
 > ⚠️ The backend is hosted on Render free tier and may cold-start after inactivity. If the first request fails, wait a few seconds and try again.
 
